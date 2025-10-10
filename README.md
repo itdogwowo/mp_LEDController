@@ -1,7 +1,7 @@
 # LED 控制系統 (LED Control System)
 
 [![MicroPython](https://img.shields.io/badge/MicroPython-3.4+-blue.svg)](https://micropython.org/)
-[![Platform](https://img.shields.io/badge/Platform-ESP32-green.svg)](https://www.espressif.com/en/products/socs/esp32)
+[![Platform](https://img.shields.io/badge/Platform-ESP32_S3-green.svg)](https://www.espressif.com/en/products/socs/esp32-s3)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 一個基於 MicroPython 的高性能 LED 控制系統,支援多種 LED 類型(PWM LED、I2C LED、WS2812 RGB LED)和豐富的動畫效果。
@@ -42,12 +42,12 @@
 │  │  Engine  │  Manager │  Control │ │
 │  └──────────┴──────────┴──────────┘ │
 ├─────────────────────────────────────┤
-│       LEDController (抽象層)         │
+│       LEDController (抽象層)        │
 │  ┌──────────┬──────────┬──────────┐ │
 │  │ esp_LED  │ i2c_LED  │   RGB    │ │
 │  └──────────┴──────────┴──────────┘ │
 ├─────────────────────────────────────┤
-│      LEDMathMethod (數學核心)        │
+│      LEDMathMethod (數學核心)       │
 │  • 正弦波生成  • HSV轉換             │
 │  • 查找表加速  • 定點數運算          │
 └─────────────────────────────────────┘
@@ -440,4 +440,4 @@ MIT License - 詳見 [LICENSE](LICENSE)
 
 ---
 
-**注意**: 本系統針對 ESP32 優化,其他 MicroPython 平台可能需要調整。
+**注意**: 本系統針對 ESP32-S3 優化,其他 MicroPython 平台可能需要調整。
