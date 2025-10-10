@@ -1,0 +1,20 @@
+https://g.co/kgs/Qx5QqZA
+
+
+Set-ExecutionPolicy remotesigned
+#Set-ExecutionPolicy Unrestricted -Scope Process
+
+py -m venv venv
+
+.\venv\Scripts\activate
+.\venv\Scripts\deactivate
+pip freeze > requirements.txt
+
+py .\wave_Test.py
+
+
+
+
+
+ mpy-cross-v6.3 -march=xtensawin LEDMathMethod.py
+

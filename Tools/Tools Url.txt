@@ -1,0 +1,6 @@
+https://www.sourcetreeapp.com/
+https://www.python.org/
+https://code.visualstudio.com/
+https://github.com/Zion-Gundam-Light-Team/mp_LEDcontroller
+https://git-scm.com/download/win
+https://thonny.org/
