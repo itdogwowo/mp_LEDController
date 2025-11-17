@@ -1,161 +1,199 @@
-from machine import Timer, I2C,SoftI2C, ADC, Pin, PWM,UART,I2S
+from machine import Timer, I2C, ADC, Pin, PWM,UART
 import esp, gc, time, json,  neopixel, utime, struct  ,ubinascii 
 from lib.LEDController import *
-from lib.audio_tools import *
+
+from lib.WiFiManager import *
+from lib.ConfigManager import *
 
 from lib.PCA9685 import *    
 
 import usocket as socket
-import network   
+import network ,webrepl
 
-sta_if = network.WLAN(network.STA_IF)
-APP = False
+# ============================================
+# 全局變量
+# ============================================
 
-def do_connect(net_Config):
-    global sta_if
-    
-    sta_if.active(False)
-    
-    if not sta_if.isconnected():
-        print('connecting to network...')
-        sta_if.active(True)
-        sta_if.connect(net_Config['ssid'], net_Config['password'])
-        i = 1
-        while not sta_if.isconnected():
-            print("connecting...{}".format(i))
-            i += 1
-            time.sleep(1)
-            if i> 10 :
-                do_AP(net_Config)
-                break
-            pass
-    if sta_if.isconnected():
-        print('Connected! Network config:', sta_if.ifconfig())
-    return True
+USER_CONNECT = False
 
-def do_AP(net_Config):
-    print(f'Unable to connect to local network : {net_Config["ssid"]}')
-    print('Turn on AB mode')
-    print(f'network name  {net_Config["pcName"]}')
-    ap_if = network.WLAN(network.AP_IF)
-    ap_if.active(False)
-    ap_if.active(True)
-    #ap_if.config(essid='RGbLed', authmode=network.AUTH_WPA_WPA2_PSK, password='12345678')
-    ap_if.config(essid=net_Config['pcName'],authmode=0)
-    ap_if.ifconfig(('10.10.1.1', '255.255.255.0', '10.10.1.1', '8.8.8.8'))
-#     print(ap_if.ifconfig())
-#     i = 1
-#     while not ap_if.isconnected():
-#         print(f"connecting AP ...{i}")
-#         i += 1
-#         time.sleep(1)
-#         if i> 10 :
-#             break
-#         pass
-    print('Connected! Network config:', ap_if.ifconfig())
-    return True
+WEBREPL_CHECK_INTERVAL = 10  # 每 30 秒檢查一次
+WEBREPL_MAX_CHECKS = 12      # 最多檢查 6 次 (WEBREPL_CHECK_INTERVAL * WEBREPL_MAX_CHECKS = 秒 // 60 = 分鐘)
+webrepl_check_count = 0      # 全局計數器
+webrepl_timer = None
+wifi = None
 
-def reset_timer():
-    global last_access_time
-    global in_running
-    with lock:
-        in_running = True
-        last_access_time = time.time()
-
-def timeout_checker():
-    global server_running
-    global in_running
-    global APP
-    while server_running and not in_running:
-        with lock:
-            current_time = time.time()
-            if (current_time - last_access_time) > timeout_interval:
-                print("Timeout reached, shutting down server.")
-                server_running = False
-                try:
-                    APP.shutdown()
-                except Exception as e:
-                    print("Error during shutdown:", e)
-                break
-        time.sleep(1)
-
-
-def run_server():
-    global APP
-    APP.run(port=80,debug=False)
-    
-    
-def init_Network(config):
-    
-    if config['enable'] :
-        do_connect(config)
-
-    # if config['webREPL_enable'] :
-    #     do_connect(config)
-
-    # if config['web_enable'] :
-    #     from Lib.microdot.microdot import Microdot
-    #     from Lib.microdot.microdot import Request, Response
-    #     from Lib.microdot.utemplate import Template
-    #     global server_running
-    #     global last_access_time
-        
-        
-    #     print("Connecting to your wifi...")
-    #     time.sleep(0.5)        
-            
-    #     app = init_webApp()
-    #     # 启动超时检查线程
-    #     _thread.start_new_thread(timeout_checker, ())
-    #     # 启动服务器线程
-    #     _thread.start_new_thread(run_server, ())
-        
-    #     try:
-    #         while server_running:
-    #             time.sleep(1)
-    #     except KeyboardInterrupt:
-    #         with lock:
-    #             server_running = False
-    #     print("Server interrupted and shut down manually.")
-    #     clear_all_variables(config['enable'])
-
+def debugPrint(dprint,debug=True):
+    if debug:
+        print(dprint)
+    else:
+        pass
     return
 
-def init_webApp():
-    global APP
 
-    from Lib.microdot.microdot import Microdot
-    from subApp.root import root_app 
-    from subApp.api import api_app
-    app = Microdot()
-
-    @root_app.route('/', methods=['GET', 'POST'])
-    def index(request):
-        reset_timer()
-        if request.method == 'GET':
-            re_Data = 'Hello, world!'
-        
-        if request.method == 'POST':
-            name = request.form.get('name')
-            re_Data = 'POST'
-        return re_Data
+def check_looping(loop_one_success,cfg):
+    global USER_CONNECT, wifi, webrepl_timer, webrepl_check_count
     
-    app.mount(root_app, url_prefix='/')
-    app.mount(api_app, url_prefix='/api')
-    APP = app
-    return app
+    if not loop_one_success:
+        print(f"{'='*70}")
+        print("📡 首次循環未成功,啟動網絡服務...")
+        print(f"{'='*70}\n")
+        
+        try:
+            # 初始化 WiFi
+            wifi = init_Network(cfg)
+            
+            if wifi and wifi.get_connection_info()['connected']:
+                # 啟動 WebREPL
+                webrepl.start(password='12345678')
+                
+                # 顯示連接信息
+                info = wifi.get_connection_info()
+                print(f"📱 WebREPL 連接信息:")
+                print(f"  URL: ws://{info['ip']}:8266")
+                print(f"  IP: {info['ip']}")
+                print(f"  mDNS: {info['mdns_name']}")
+                print(f"  密碼: 12345678")
+                
+                print(f"\n⏰ 啟動定期檢查:")
+                print(f"  檢查間隔: {WEBREPL_CHECK_INTERVAL} 秒")
+                print(f"  檢查次數: {WEBREPL_MAX_CHECKS} 次")
+                print(f"  總等待時間: {WEBREPL_CHECK_INTERVAL * WEBREPL_MAX_CHECKS} 秒")
+                
+                print(f"\n💡 連接後請執行:")
+                print(f"  >>> USER_CONNECT = True")
+                print(f"{'='*70}\n")
+                
+                # 啟動周期性計時器 - 使用虛擬計時器
+                webrepl_timer = Timer(0) 
+                webrepl_timer.init(
+                    period=WEBREPL_CHECK_INTERVAL * 1000,  # 轉換為毫秒
+                    mode=Timer.PERIODIC,  # 周期模式
+                    callback=webrepl_check_handler
+                )
+                
+                print(f"✓ 計時器已啟動 (每 {WEBREPL_CHECK_INTERVAL} 秒檢查一次)\n")
+            else:
+                print(f"⚠ WiFi 連接失敗,跳過網絡服務\n")
+        
+        except Exception as e:
+            print(f"✗ 網絡初始化失敗: {e}\n")
+            import sys
+            sys.print_exception(e)
+            wifi = None
+
+    else:
+        print(f"{'='*70}")
+        print("⏭️  上次循環成功,跳過網絡服務")
+        print(f"{'='*70}\n")
+    
+    
+    return
+    
+
+def webrepl_check_handler(timer):
+    # ============================================
+    # 計時器回調函數
+    # ============================================
 
 
-#pinOut = Pin(20,Pin.OUT)
-#pinIn = Pin(21,Pin.IN)
+    """
+    定期檢查 WebREPL 連接狀態
+    每 30 秒觸發一次,共 6 次
+    
+    Args:
+        timer: Timer 對象
+    """
+    global USER_CONNECT, wifi, webrepl_timer, webrepl_check_count
+    
+    webrepl_check_count += 1
+    remaining_checks = WEBREPL_MAX_CHECKS - webrepl_check_count
+    remaining_time = remaining_checks * WEBREPL_CHECK_INTERVAL
+    
+    print(f"\n{'='*70}")
+    print(f"⏰ WebREPL 檢查 [{webrepl_check_count}/{WEBREPL_MAX_CHECKS}]")
+    print(f"{'='*70}")
+    
+    # 檢查用戶是否已連接
+    if USER_CONNECT:
+        print("✅ 檢測到用戶已連接!")
+        print("🌐 網絡服務將保持運行")
+        print(f"{'='*70}\n")
+        
+        # 停止計時器
+        if webrepl_timer:
+            webrepl_timer.deinit()
+            webrepl_timer = None
+            print("✓ 計時器已停止\n")
+    
+    # 檢查是否達到最大次數
+    elif webrepl_check_count >= WEBREPL_MAX_CHECKS:
+        print(f"⏰ 已達到最大等待時間 ({(WEBREPL_CHECK_INTERVAL * WEBREPL_MAX_CHECKS)//60 } 分鐘)")
+        print("❌ 未檢測到用戶連接")
+        print("🧹 正在關閉網絡服務...")
+        
+        try:
+            webrepl.stop()
+            print("  ✓ WebREPL 已停止")
+        except Exception as e:
+            print(f"  ⚠ 停止 WebREPL 失敗: {e}")
+        
+        try:
+            if wifi:
+                wifi.disconnect()
+                print("  ✓ WiFi 已斷開")
+        except Exception as e:
+            print(f"  ⚠ 斷開 WiFi 失敗: {e}")
+        
+        print(f"{'='*70}\n")
+        
+        # 停止計時器
+        if webrepl_timer:
+            webrepl_timer.deinit()
+            webrepl_timer = None
+            print("✓ 計時器已停止\n")
+    
+    # 繼續等待
+    else:
+        print(f"⏳ 等待用戶連接...")
+        print(f"⏱️  剩餘時間: {remaining_time} 秒 ({remaining_checks} 次檢查)")
+        print(f"\n💡 如果你已通過 WebREPL 連接,請執行:")
+        print(f"  >>> USER_CONNECT = True")
+        print(f"或:")
+        print(f"  >>> import main")
+        print(f"  >>> main.USER_CONNECT = True")
+        print(f"{'='*70}\n")
+        
+def init_Network(config):
+    
+    """
+    初始化網絡 (兼容你原有的函數名)
+    
+    Args:
+        network_config: Network 配置字典
+        
+    Returns:
+        WiFiManager: WiFi 管理器實例
+    """
+    
+    _config = {
+        "enable"   : config.get('Network.enable') ,
+        "pcName"   : config.get('Network.pcName', 'esp32'),
+        "ssid"     : config.get('Network.ssid', '00'),
+        "password" : config.get('Network.password', '00')
+    }
+    
+    
+    # 創建 WiFi 管理器
+    _wifi = WiFiManager(config_dict=_config)
+    
+    # 自動連接
+    _wifi.connect()
+    
+    # 打印信息
+    _wifi.print_info()
+    
+    return _wifi
 
-# def init_i2c_led(i2c_led):
-#     re_ledPwm = []
-#     for i in range(16):
-#         led_IO = {'led_IO':i,'Q':0,'i2c_Object':i2c_led}
-#         ledPwm = LEDcontroller('i2c_LED',led_IO)
-#         re_ledPwm.append(ledPwm)
-#     return re_ledPwm
 
 def init_i2c_led(i2c_led):
     re_ledPwm = []
@@ -176,7 +214,7 @@ def init_i2c(led_io):
     if led_io['enable'] :
         for i2cc in led_io['i2c_List']:
             print(i2cc['GPIO']['scl'],i2cc['GPIO']['sda'])
-            i2c = SoftI2C(scl=i2cc['GPIO']['scl'], sda=i2cc['GPIO']['sda'])
+            i2c = I2C(scl=i2cc['GPIO']['scl'], sda=i2cc['GPIO']['sda'])
             #print(i2c.scan())
             for i in i2c.scan():
                 print(hex(i))
@@ -202,9 +240,8 @@ def init_i2c(led_io):
 def init_led(led_io):
     led_l = []
     if led_io['enable'] :
-        led_IO = {'led_IO':led_io['GPIO'],'Q':len(led_io['GPIO']),'i2c_Object':''}
+        led_IO = {'led_IO':led_io['GPIO_List'],'Q':len(led_io['GPIO_List']),'i2c_Object':''}
         led_l.append(LEDcontroller('esp_LED',led_IO))
-
     return led_l
 
 def init_rgb(led_io):
@@ -218,8 +255,10 @@ def init_rgb(led_io):
     return rgb_l
 
 def init_i2s(led_io):
+    
     i2s = None
     if led_io['enable'] :
+        from lib.audio_tools import AudioBuffer
 
         # 硬件引脚配置 (ESP32)
         sck_pin = Pin(led_io['i2s_List'][0]['GPIO']['sck'])   # 串行时钟
@@ -257,24 +296,6 @@ def init_i2s(led_io):
 
 
     return i2s
-
-def clear_all_variables(network_enable):
-    global APP, last_access_time, timeout_interval, server_running, lock, in_running
-    global reset_timer, init_webApp ,init_Network,run_server,timeout_checker
-    # if network_enable:
-    #     del APP
-    del APP
-    del last_access_time
-    del timeout_interval
-    del server_running
-    del lock
-    del reset_timer
-    del init_webApp
-    del init_Network
-    del run_server
-    del timeout_checker
-    gc.collect()
-    print("All variables are cleared and garbage collected.")
 
 
 

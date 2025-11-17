@@ -39,6 +39,23 @@ def random_pattern(F_n, l_max, run_n, gpio_all, r_end_Time ,led_n = 0, method = 
     return r_pattern
 
 
+
+def set_servo_angle(angle):
+    # Calculate the duty cycle from the angle
+    # This formula needs to be calibrated for your specific servo
+    # Typical range for SG90: 0.5ms (0 deg) to 2.4ms (180 deg) pulse width
+    # Duty cycle in MicroPython's duty_u16 is a 16-bit value (0-65535)
+    # For 50Hz (20ms period):
+    # 0.5ms pulse = (0.5 / 20) * 65535 = 1638
+    # 2.4ms pulse = (2.4 / 20) * 65535 = 7864
+    
+    min_duty = 1638  # Adjust based on your servo's minimum pulse width
+    max_duty = 7864  # Adjust based on your servo's maximum pulse width
+    
+    duty = int(min_duty + (angle / 180) * (max_duty - min_duty))
+    pwm.duty_u16(duty)
+
+
 class LEDcontroller:
     '''
     led_IO = {'led_IO':io,'Q':0,'i2c_Object':i2c_Object}
@@ -124,7 +141,7 @@ class LEDcontroller:
         def duty(self, lum,ledQ=[]):
 
             if self.controller.led_Type=='esp_LED':
-                io_lum = lum >> 2
+                io_lum = lum << 4
             elif self.controller.led_Type=='i2c_LED':
                 io_lum = lum
             elif self.controller.led_Type=='RGB':
@@ -173,13 +190,12 @@ class LEDcontroller:
         @micropython.viper
         def set_led_V_buf(self, lum:int):
             self.set_buf(lum)
-
-
+            
         @micropython.viper
         def set_buf(self, lum:int):
 
             if self.controller.led_Type=='esp_LED':
-                io_lum = int(lum) >> 2
+                io_lum = int(lum) << 4
             elif self.controller.led_Type=='i2c_LED':
                 io_lum = int(lum)
             elif self.controller.led_Type=='RGB':
@@ -188,6 +204,31 @@ class LEDcontroller:
                 io_lum = int(lum)
 
             self.controller.LED_Buffer[self.index] = io_lum
+
+
+        @micropython.viper
+        def set_rgb(self, rgb: ptr8):
+            r_high = rgb[0] & 0x03  # 红色分量的低2位
+            g_high = rgb[1] & 0x03  # 绿色分量的低2位  
+            b_high = rgb[2] & 0x03  # 蓝色分量的低2位
+            
+            io_lum = (r_high << 10) | (g_high << 8) | (b_high << 6) | (r_high << 4) | (g_high << 2) | b_high
+
+            if self.controller.led_Type=='esp_LED':
+                io_lum = io_lum
+                self.controller.LED_Buffer[self.index] = io_lum
+            elif self.controller.led_Type=='i2c_LED':
+                io_lum = io_lum >> 4
+                self.controller.LED_Buffer[self.index] = io_lum
+            elif self.controller.led_Type=='RGB':
+                _index= int(self.index )*3
+                self.controller.led.buf[_index] = rgb[1]
+                self.controller.led.buf[_index+1] = rgb[0]
+                self.controller.led.buf[_index+2] = rgb[2]
+            else:
+                io_lum = int(lum)
+            
+            
 
         class LED_buf:
             def __init__(self, LED, index):
@@ -212,7 +253,8 @@ class LEDcontroller:
     def setup(self):
         """初始化硬體設定"""
         if self.led_Type == 'esp_LED':
-            self.led = [PWM(Pin(pin_number)) for pin_number in self.led_IO['led_IO']]
+            self.led = [PWM(Pin(pin_number['GPIO']), freq=50, duty_u16=pin_number['dArc']) for pin_number in self.led_IO['led_IO']]
+
             
         elif self.led_Type == 'i2c_LED':
             self.led = self.led_IO['led_IO']
@@ -227,10 +269,12 @@ class LEDcontroller:
         """重置所有LED狀態"""
         self.LED_Buffer = array.array('H',[0] * self.led_IO['Q'])
         if self.led_Type=='esp_LED':
-            for led in self.led:
-                # led.freq(1000)  # 设置PWM频率
-                led.duty(0)
-
+            
+            for idx, led in enumerate(self.led):
+                self.LED_Buffer[idx] = self.led_IO['led_IO'][idx]['dArc']
+                led.duty_u16(self.LED_Buffer[idx])
+                
+                
         if self.led_Type=='i2c_LED':
             self.led.buffer = self.LED_Buffer
             self.led.sync_buffer()
@@ -332,7 +376,7 @@ class LEDcontroller:
 
             if self.led_Type=='esp_LED':
                 for i in range(self.led_IO['Q']):
-                    self.led[i].duty(self.LED_Buffer[i])
+                    self.led[i].duty_u16(self.LED_Buffer[i])
 
             if self.led_Type=='i2c_LED':
                 self.led.buffer = self.LED_Buffer

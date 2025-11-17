@@ -9,6 +9,15 @@
     "LED_IO":{
         "enable": 0 ,
         "GPIO":[5,6,7,8,9,10]
+        "GPIO_List":[
+            {"GPIO":5,"dArc":0},
+            {"GPIO":6,"dArc":0},
+            {"GPIO":7,"dArc":0},
+            {"GPIO":8,"dArc":0},
+            {"GPIO":9,"dArc":0},
+            {"GPIO":10,"dArc":0},
+        
+        ]
     },
     "UART_IO":{
         "enable": 0 ,

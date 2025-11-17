@@ -8,7 +8,17 @@
     "c_lum":1.0,
     "LED_IO":{
         "enable": 0 ,
-        "GPIO":[11,12,13,14,15,16,17,18]
+        "GPIO_List":[
+            {"GPIO":11,"dArc":0,"type":0},
+            {"GPIO":12,"dArc":0,"type":0},
+            {"GPIO":13,"dArc":0,"type":0},
+            {"GPIO":14,"dArc":0,"type":0},
+            {"GPIO":15,"dArc":0,"type":0},
+            {"GPIO":16,"dArc":0,"type":0},
+            {"GPIO":17,"dArc":0,"type":0},
+            {"GPIO":18,"dArc":0,"type":0},
+        
+        ]
     },
     "UART_IO":{
         "enable": 0 ,

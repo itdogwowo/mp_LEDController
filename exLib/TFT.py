@@ -90,6 +90,9 @@ class TFT:
         self.rst = rst
         self.width = width
         self.height = height
+        self._rotation = 0
+        self._color_order = "RGB"  # 預設顏色順序
+        self._inverted = False     # 顏色反轉狀態
         
         # 初始化引腳
         self.dc.init(machine.Pin.OUT, value=0)
@@ -100,26 +103,42 @@ class TFT:
         time.sleep_ms(100)
     
     def reset(self):
+        """硬體重置顯示器"""
         self.rst(0)
         time.sleep_ms(50)
         self.rst(1)
         time.sleep_ms(50)
     
     def write_cmd(self, cmd):
+        """寫入命令到顯示器"""
         self.dc(0)
         self.cs(0)
         self.spi.write(bytearray([cmd]))
         self.cs(1)
     
     def write_data(self, data):
+        """寫入數據到顯示器"""
         self.dc(1)
         self.cs(0)
         self.spi.write(data)
         self.cs(1)
-            
-    def set_window(self, x0, y0):
-        x1 = x0 + self.width-1
-        y1 = y0 + self.height-1
+    
+    def write_cmd_data(self, cmd, data):
+        """同時寫入命令和數據"""
+        self.write_cmd(cmd)
+        if data:
+            self.write_data(data)
+    
+    def set_window(self, x0, y0, x1=None, y1=None):
+        """設置顯示區域窗口"""
+        if x1 is None:
+            x1 = x0 + self.width - 1
+        if y1 is None:
+            y1 = y0 + self.height - 1
+        
+        # 根據旋轉調整座標
+        if self._rotation in [90, 270]:
+            x0, y0, x1, y1 = y0, x0, y1, x1
         
         self.write_cmd(0x2A)  # 列地址設置
         self.write_data(bytes([x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF]))
@@ -128,37 +147,117 @@ class TFT:
         self.write_data(bytes([y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF]))
         
         self.write_cmd(0x2C)  # 內存寫入
-
-    def display_bin(self, filename,x,y):
-        self.set_window( x, y)
+    
+    def set_rotation(self, rotation):
+        """
+        設置屏幕旋轉角度
+        :param rotation: 0, 90, 180, 270
+        """
+        if rotation not in [0, 90, 180, 270]:
+            raise ValueError("Rotation must be 0, 90, 180, or 270")
+        
+        self._rotation = rotation
+        self._update_rotation()
+        return self
+    
+    def get_rotation(self):
+        """獲取當前旋轉角度"""
+        return self._rotation
+    
+    def set_color_order(self, order):
+        """
+        設置顏色順序
+        :param order: "RGB" 或 "BGR"
+        """
+        if order.upper() not in ["RGB", "BGR"]:
+            raise ValueError("Color order must be 'RGB' or 'BGR'")
+        
+        self._color_order = order.upper()
+        self._update_color_order()
+        return self
+    
+    def get_color_order(self):
+        """獲取當前顏色順序"""
+        return self._color_order
+    
+    def invert_display(self, invert=True):
+        """
+        設置顏色反轉
+        :param invert: True 開啟反轉, False 關閉反轉
+        """
+        self._inverted = bool(invert)
+        self._update_inversion()
+        return self
+    
+    def get_inversion_state(self):
+        """獲取當前顏色反轉狀態"""
+        return self._inverted
+    
+    def toggle_inversion(self):
+        """切換顏色反轉狀態"""
+        self._inverted = not self._inverted
+        self._update_inversion()
+        return self._inverted
+    
+    def _update_rotation(self):
+        """更新旋轉設置 (子類需實現)"""
+        pass
+    
+    def _update_color_order(self):
+        """更新顏色順序設置 (子類需實現)"""
+        pass
+    
+    def _update_inversion(self):
+        """更新顏色反轉設置 (子類需實現)"""
+        pass
+    
+    def fill(self, color):
+        """填充整個屏幕為指定顏色"""
+        # 將顏色轉換為RGB565格式
+        if isinstance(color, tuple) and len(color) == 3:
+            # 從RGB元組轉換
+            r, g, b = color
+            color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+        
+        # 創建顏色緩衝區
+        buffer = bytearray(self.width * self.height * 2)
+        for i in range(0, len(buffer), 2):
+            buffer[i] = color >> 8
+            buffer[i+1] = color & 0xFF
+        
+        # 發送到顯示器
+        self.set_window(0, 0)
+        self.write_data(buffer)
+    
+    def display_bin(self, filename, x=0, y=0):
+        """顯示二進制圖像文件"""
+        self.set_window(x, y)
         with open(filename, 'rb') as f:
             start_time = utime.ticks_ms()
             
             buf = memoryview(bytearray(os.stat(filename)[6]))
             f.readinto(buf)
             self.write_data(buf)
+            
             end_time = utime.ticks_ms()
-            
-            
-            ticks_time = time.ticks_diff(end_time, start_time)
-            print(ticks_time)
-            
-    def display_img_bin(self, filename,x,y):
-        self.set_window( x, y)
+            ticks_time = utime.ticks_diff(end_time, start_time)
+            print(f"Display time: {ticks_time}ms")
+    
+    def display_img_bin(self, filename, x=0, y=0):
+        """顯示二進制圖像文件 (無計時)"""
+        self.set_window(x, y)
         with open(filename, 'rb') as f:
-            start_time = utime.ticks_ms()
             buf = memoryview(bytearray(os.stat(filename)[6]))
             f.readinto(buf)
             self.write_data(buf)
-            end_time = utime.ticks_ms()
 
-            
-         
 
 class ST7735(TFT):
-    def __init__(self, spi, dc, cs, rst,width,height, rotation=0):
+    def __init__(self, spi, dc, cs, rst, width, height, rotation=0, color_order="RGB", invert=False):
         super().__init__(spi, dc, cs, rst, width, height)
         self._rotation = rotation
+        self._color_order = color_order.upper()
+        self._inverted = invert
         self.init()
     
     def init(self):
@@ -174,24 +273,59 @@ class ST7735(TFT):
             (0xC2, b'\x0A\x00'),
             (0xC3, b'\x8A\x2A'),
             (0xC4, b'\x8A\xEE'),
-            (0x36, b'\xC0'),    # 內存訪問控制
+            (0x36, self._get_madctl_cmd()),    # 內存訪問控制
             (0x3A, b'\x05'),    # 16位像素
-            (0x21, None),       # 顯示反轉
+            (self._get_inversion_cmd(), None), # 顯示反轉
             (0x29, None)        # 開啟顯示
         ]
         
         for cmd, data in init_cmds:
-            self.write_cmd(cmd)
-            if data:
-                self.write_data(data)
+            self.write_cmd_data(cmd, data)
             time.sleep_ms(10)
-        self.set_window(0,0)
+        
+        self.set_window(0, 0)
+    
+    def _get_madctl_cmd(self):
+        """獲取內存訪問控制命令值"""
+        # ST7735 MADCTL 位定義:
+        # MY MX MV ML RGB MH - -
+        rotation_settings = {
+            0: 0x00,   # 正常方向
+            90: 0x60,  # 旋轉90度
+            180: 0xC0, # 旋轉180度
+            270: 0xA0  # 旋轉270度
+        }
+        
+        base = rotation_settings.get(self._rotation, 0x00)
+        # 設置顏色順序 (RGB/BGR)
+        if self._color_order == "BGR":
+            base |= 0x08  # 設置BGR模式
+        
+        return bytes([base])
+    
+    def _get_inversion_cmd(self):
+        """獲取顏色反轉命令"""
+        return 0x21 if self._inverted else 0x20
+    
+    def _update_rotation(self):
+        """更新旋轉設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_color_order(self):
+        """更新顏色順序設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_inversion(self):
+        """更新顏色反轉設置"""
+        self.write_cmd(self._get_inversion_cmd())
 
-# ====== ST7789專用驅動 ======
+
 class ST7789(TFT):
-    def __init__(self, spi, dc, cs, rst, width, height,rotation=0):
+    def __init__(self, spi, dc, cs, rst, width, height, rotation=0, color_order="RGB", invert=False):
         super().__init__(spi, dc, cs, rst, width, height)
         self._rotation = rotation
+        self._color_order = color_order.upper()
+        self._inverted = invert
         self.init()
     
     def init(self):
@@ -199,8 +333,7 @@ class ST7789(TFT):
             (0x01, None),       # 軟復位
             (0x11, None),       # 退出睡眠模式
             (0x3A, b'\x55'),    # 16位像素
-            (0x36, b'\x60'),
-            # (0x36, b'\x00'),    # 內存訪問控制
+            (0x36, self._get_madctl_cmd()),    # 內存訪問控制
             (0xB2, b'\x0C\x0C\x00\x33\x33'),
             (0xB7, b'\x35'),    # 門控制
             (0xBB, b'\x19'),    # VCOM設置
@@ -209,37 +342,90 @@ class ST7789(TFT):
             (0xC3, b'\x12'),
             (0xC4, b'\x20'),
             (0xC6, b'\x0F'),
-#             (0x21, None),
+            (self._get_inversion_cmd(), None), # 顏色反轉
             (0xD0, b'\xA4\xA1'),
             (0x29, None)        # 開啟顯示
         ]
         
         for cmd, data in init_cmds:
-            self.write_cmd(cmd)
-            if data:
-                self.write_data(data)
+            self.write_cmd_data(cmd, data)
             time.sleep_ms(10)
-        self.set_window(0,0)
-
-
-    def _get_rotation_cmd(self):
-        """根據旋轉角度返回記憶體存取控制值"""
-        # MADCTL寄存器位定義:
-        # [MY:行地址方向, MX:列地址方向, MV:行列交換, ML:垂直刷新順序, RGB:RGB順序, MH:水平刷新順序]
+        
+        self.set_window(0, 0)
+    
+    def _get_madctl_cmd(self):
+        """獲取內存訪問控制命令值"""
+        # ST7789 MADCTL 位定義:
+        # MY MX MV ML RGB MH - -
         rotation_settings = {
-            # MY MX MV ML RGB MH
-            0:   0x48,   # 橫向模式 (0°) - RGB順序
-            90:  0x28,   # 縱向模式 (90°)
-            180: 0x88,   # 橫向反轉 (180°)
-            270: 0xE8    # 縱向反轉 (270°)
+            0: 0x00,   # 正常方向
+            90: 0x60,  # 旋轉90度
+            180: 0xC0, # 旋轉180度
+            270: 0xA0  # 旋轉270度
         }
-        return bytes([rotation_settings.get(self._rotation, 0x48)])
+        
+        base = rotation_settings.get(self._rotation, 0x00)
+        # 設置顏色順序 (RGB/BGR)
+        if self._color_order == "BGR":
+            base |= 0x08  # 設置BGR模式
+        
+        return bytes([base])
+    
+    def _get_inversion_cmd(self):
+        """獲取顏色反轉命令"""
+        return 0x21 if self._inverted else 0x20
+    
+    def _update_rotation(self):
+        """更新旋轉設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_color_order(self):
+        """更新顏色順序設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_inversion(self):
+        """更新顏色反轉設置"""
+        self.write_cmd(self._get_inversion_cmd())
+
+
+class ST7789T3(ST7789):
+    """ST7789T3 變體驅動，可能有一些特定的初始化參數"""
+    def __init__(self, spi, dc, cs, rst, width=240, height=240, rotation=0, color_order="RGB", invert=False):
+        super().__init__(spi, dc, cs, rst, width, height, rotation, color_order, invert)
+    
+    def init(self):
+        # ST7789T3 可能有不同的初始化序列
+        init_cmds = [
+            (0x01, None),       # 軟復位
+            (0x11, None),       # 退出睡眠模式
+            (0x3A, b'\x55'),    # 16位像素
+            (0x36, self._get_madctl_cmd()),    # 內存訪問控制
+            (0xB2, b'\x0C\x0C\x00\x33\x33'),   # 門控制
+            (0xB7, b'\x35'),    # 門控制
+            (0xBB, b'\x1F'),    # VCOM設置 (T3可能不同)
+            (0xC0, b'\x2C'),    # LCM控制
+            (0xC2, b'\x01'),
+            (0xC3, b'\x12'),
+            (0xC4, b'\x20'),
+            (0xC6, b'\x0F'),
+            (self._get_inversion_cmd(), None), # 顏色反轉
+            (0xD0, b'\xA4\xA1'),
+            (0x29, None)        # 開啟顯示
+        ]
+        
+        for cmd, data in init_cmds:
+            self.write_cmd_data(cmd, data)
+            time.sleep_ms(10)
+        
+        self.set_window(0, 0)
 
 
 class GC9A01(TFT):
-    def __init__(self, spi, dc, cs, rst, width, height,rotation=0):
+    def __init__(self, spi, dc, cs, rst, width, height, rotation=0, color_order="RGB", invert=False):
         super().__init__(spi, dc, cs, rst, width, height)
         self._rotation = rotation
+        self._color_order = color_order.upper()
+        self._inverted = invert
         self.init()
     
     def init(self):
@@ -262,7 +448,6 @@ class GC9A01(TFT):
             (0x8E, b'\xFF'),     # COM腳掃描
             (0x8F, b'\xFF'),     # COM腳配置
             (0xB6, b'\x00\x00'), # 顯示功能控制
-            # (0x36, b'\x08'),     # 記憶體存取控制 (MY=0, MX=0, MV=1, ML=0, BGR=0)
             (0x3A, b'\x55'),     # 像素格式 (16-bits/pixel)
             (0x90, b'\x08\x08\x08\x08'),  # 框架速率控制
             (0xBD, b'\x06'),     # 命令保護
@@ -288,32 +473,63 @@ class GC9A01(TFT):
             (0x64, b'\x28\x29\xF1\x01\xF1\x00\x07'), 
             (0x66, b'\x3C\x00\xCD\x67\x45\x45\x10\x00\x00\x00'),
             (0x67, b'\x00\x3C\x00\x00\x00\x01\x54\x10\x32\x98'),
-            (0x36, b'\x08'),
+            (0x36, self._get_madctl_cmd()),  # 記憶體存取控制
             (0x74, b'\x10\x85\x80\x00\x00\x4E\x00'),
             (0x98, b'\x3e\x07'),
-            (0x35,None),
-            (0x21,None),
+            (0x35, None),
+            (self._get_inversion_cmd(), None),  # 顏色反轉
             (0x29, None),        # 開啟顯示
             (0x11, None),        # 退出睡眠模式 (必須在最後)
-   
         ]
         
         for cmd, data in init_cmds:
-            self.write_cmd(cmd)
-            if data:
-                self.write_data(data)
+            self.write_cmd_data(cmd, data)
             time.sleep_ms(10)
 
-        self.set_window(0,0)
+        self.set_window(0, 0)
+    
+    def _get_madctl_cmd(self):
+        """獲取內存訪問控制命令值"""
+        # GC9A01 MADCTL 位定義可能有所不同
+        rotation_settings = {
+            0: 0x08,   # 正常方向
+            90: 0x68,  # 旋轉90度
+            180: 0xC8, # 旋轉180度
+            270: 0xA8  # 旋轉270度
+        }
         
+        base = rotation_settings.get(self._rotation, 0x08)
+        # 設置顏色順序 (RGB/BGR)
+        if self._color_order == "BGR":
+            base |= 0x08  # 設置BGR模式
+        
+        return bytes([base])
+    
+    def _get_inversion_cmd(self):
+        """獲取顏色反轉命令"""
+        return 0x21 if self._inverted else 0x20
+    
+    def _update_rotation(self):
+        """更新旋轉設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_color_order(self):
+        """更新顏色順序設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_inversion(self):
+        """更新顏色反轉設置"""
+        self.write_cmd(self._get_inversion_cmd())
 
 
 class ILI9341(TFT):
-    def __init__(self, spi, dc, cs, rst, width=240, height=320, rotation=0):
+    def __init__(self, spi, dc, cs, rst, width=240, height=320, rotation=0, color_order="RGB", invert=False):
         super().__init__(spi, dc, cs, rst, width, height)
-        self._rotation = rotation  # 螢幕旋轉角度 (0, 90, 180, 270)
+        self._rotation = rotation
+        self._color_order = color_order.upper()
+        self._inverted = invert
         self.init()
-
+    
     def init(self):
         # 硬體復位序列
         self.rst(1)
@@ -335,7 +551,7 @@ class ILI9341(TFT):
             (0xC1, b'\x10'),             # 電源控制2
             (0xC5, b'\x3E\x28'),         # VCOM控制1
             (0xC7, b'\x86'),             # VCOM控制2
-            (0x36, self._get_rotation_cmd()),  # 記憶體存取控制 (旋轉設定)
+            (0x36, self._get_madctl_cmd()),  # 記憶體存取控制
             (0x3A, b'\x55'),             # 像素格式 (16位)
             (0xB1, b'\x00\x18'),         # 幀率控制
             (0xB6, b'\x08\x82\x27'),     # 顯示功能控制
@@ -344,48 +560,49 @@ class ILI9341(TFT):
             (0xE0, b'\x0F\x31\x2B\x0C\x0E\x08\x4E\xF1\x37\x07\x10\x03\x0E\x09\x00'), # 正極Gamma校正
             (0xE1, b'\x00\x0E\x14\x03\x11\x07\x31\xC1\x48\x08\x0F\x0C\x31\x36\x0F'), # 負極Gamma校正
             (0x11, None),               # 退出睡眠模式
+            (self._get_inversion_cmd(), None),  # 顏色反轉
             (0x29, None)                # 開啟顯示
         ]
         
         # 發送初始化命令
         for cmd, data in init_cmds:
-            self.write_cmd(cmd)
-            if data:
-                self.write_data(data)
-            time.sleep_ms(10)  # 命令間延時
+            self.write_cmd_data(cmd, data)
+            time.sleep_ms(10)
         
         # 額外延時確保初始化完成
         time.sleep_ms(120)
-        self._set_window(0, 0, self.width - 1, self.height - 1)
-
-    def _get_rotation_cmd(self):
-        """根據旋轉角度返回記憶體存取控制值"""
-        # MADCTL寄存器位定義:
-        # [MY:行地址方向, MX:列地址方向, MV:行列交換, ML:垂直刷新順序, RGB:RGB順序, MH:水平刷新順序]
+        self.set_window(0, 0, self.width - 1, self.height - 1)
+    
+    def _get_madctl_cmd(self):
+        """獲取內存訪問控制命令值"""
+        # ILI9341 MADCTL 位定義:
+        # MY MX MV ML RGB MH - -
         rotation_settings = {
-            # MY MX MV ML RGB MH
-            0:   0x48,   # 橫向模式 (0°) - RGB順序
-            90:  0x28,   # 縱向模式 (90°)
-            180: 0x88,   # 橫向反轉 (180°)
-            270: 0xE8    # 縱向反轉 (270°)
+            0: 0x48,   # 正常方向
+            90: 0x28,  # 旋轉90度
+            180: 0x88, # 旋轉180度
+            270: 0xE8  # 旋轉270度
         }
-        return bytes([rotation_settings.get(self._rotation, 0x48)])
-
-    def _set_window(self, x0, y0, x1, y1):
-        """設置顯示區域"""
-        # 根據旋轉方向調整座標
-        if self._rotation in [90, 270]:
-            x0, y0, x1, y1 = y0, x0, y1, x1
         
-        self.write_cmd(0x2A)  # 列地址設置
-        self.write_data(bytes([x0 >> 8, x0 & 0xFF, x1 >> 8, x1 & 0xFF]))
-        self.write_cmd(0x2B)  # 行地址設置
-        self.write_data(bytes([y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF]))
-        self.write_cmd(0x2C)  # 寫入記憶體命令
-
-    def display(self, image):
-        """顯示圖像"""
-        self._set_window(0, 0, self.width - 1, self.height - 1)
-        # 將圖像數據轉換為RGB565字節流
-        # 此處應添加具體的圖像數據傳輸代碼
-        self.write_data(image)
+        base = rotation_settings.get(self._rotation, 0x48)
+        # 設置顏色順序 (RGB/BGR)
+        if self._color_order == "BGR":
+            base |= 0x08  # 設置BGR模式
+        
+        return bytes([base])
+    
+    def _get_inversion_cmd(self):
+        """獲取顏色反轉命令"""
+        return 0x21 if self._inverted else 0x20
+    
+    def _update_rotation(self):
+        """更新旋轉設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_color_order(self):
+        """更新顏色順序設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_inversion(self):
+        """更新顏色反轉設置"""
+        self.write_cmd(self._get_inversion_cmd())

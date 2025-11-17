@@ -1,27 +1,38 @@
 from lib.ESP_Boot import *
 from lib.LEDcommander import *
-from lib.LEDController import * 
+from lib.LEDController import *
+from lib.ConfigManager import *
+
+
 
 with open('startup_config.json', 'r') as openfile:
-    # Reading from json file
-    startup_config = json.load(openfile)
-
-# Writing to sample.json
-with open("running_config.json", "w+") as outfile:
-    running_config = json.dumps(startup_config)
-    outfile.write(running_config)
-
-with open('running_config.json', 'r') as openfile:
     # Reading from json file
     config = json.load(openfile)
 
 
+# ============================================
+# 全局變量
+# ============================================
 C_LUMN = config['c_lum']
+
 KEEP_RUN = True
 
 
+# 計時器配置
 
-init_Network(config['Network'])
+
+# 初始化配置管理器
+cfg = ConfigManager(startup_file='startup_config.json')
+print('='*70)
+loop_one_success = cfg.get_state('loop_one_success', default=False)
+cfg.set_state('loop_one_success', False)
+
+# cfg.set_state('loop_one_success', True)
+# check_looping(True,cfg)
+check_looping(loop_one_success,cfg)
+
+
+        
 
 gc.collect()
 

@@ -1,5 +1,3 @@
-https://g.co/kgs/Qx5QqZA
-
 
 Set-ExecutionPolicy remotesigned
 #Set-ExecutionPolicy Unrestricted -Scope Process

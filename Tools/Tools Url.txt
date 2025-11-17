@@ -4,3 +4,4 @@ https://code.visualstudio.com/
 https://github.com/Zion-Gundam-Light-Team/mp_LEDcontroller
 https://git-scm.com/download/win
 https://thonny.org/
+https://g.co/kgs/Qx5QqZA
