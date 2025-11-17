@@ -2,6 +2,7 @@ import btree
 import json
 import os
 import time
+from lib.globalMethod import debugPrint
 
 class ConfigManager:
     """
@@ -56,7 +57,7 @@ class ConfigManager:
         # 更新啟動計數
         self._update_boot_info()
         
-        print(f"[Config] 配置管理器已就緒")
+        debugPrint(f"[Config] 配置管理器已就緒")
     
     def _load_startup_config(self):
         """
@@ -68,13 +69,13 @@ class ConfigManager:
         try:
             with open(self.startup_file, 'r') as f:
                 config = json.load(f)
-                print(f"[Config] ✓ 已加載啟動配置: {self.startup_file}")
+                debugPrint(f"[Config] ✓ 已加載啟動配置: {self.startup_file}")
                 return config
         except OSError:
-            print(f"[Config] ⚠ 未找到啟動配置文件 {self.startup_file}, 使用默認配置")
+            debugPrint(f"[Config] ⚠ 未找到啟動配置文件 {self.startup_file}, 使用默認配置")
             return self._get_default_config()
         except Exception as e:
-            print(f"[Config] ✗ 加載配置出錯: {e}, 使用默認配置")
+            debugPrint(f"[Config] ✗ 加載配置出錯: {e}, 使用默認配置")
             return self._get_default_config()
     
     def _get_default_config(self):
@@ -124,14 +125,14 @@ class ConfigManager:
         
         # 打開 btree
         self.db = btree.open(self.f)
-        print(f"[Config] ✓ 數據庫已打開: {self.db_file}")
+        debugPrint(f"[Config] ✓ 數據庫已打開: {self.db_file}")
     
     def _sync_config_from_startup(self):
         """
         從啟動配置同步到 btree (每次開機執行)
         會覆蓋所有 config.* 的鍵,但保留 state.* 和 user.* 的鍵
         """
-        print("[Config] 🔄 正在同步啟動配置到數據庫...")
+        debugPrint("[Config] 🔄 正在同步啟動配置到數據庫...")
         
         # 記錄同步時間
         sync_time = time.time()
@@ -147,7 +148,7 @@ class ConfigManager:
             del self.db[key_bytes]
         
         if keys_to_delete:
-            print(f"[Config]   已清除 {len(keys_to_delete)} 個舊配置項")
+            debugPrint(f"[Config]   已清除 {len(keys_to_delete)} 個舊配置項")
         
         # 將啟動配置扁平化並保存
         count = self._flatten_and_save(self.startup_config, prefix='config')
@@ -159,7 +160,7 @@ class ConfigManager:
         # 提交更改
         self.db.flush()
         
-        print(f"[Config] ✓ 已同步 {count} 個配置項")
+        debugPrint(f"[Config] ✓ 已同步 {count} 個配置項")
     
     def _flatten_and_save(self, data, prefix='', count=0):
         """
@@ -204,7 +205,7 @@ class ConfigManager:
         
         self.db.flush()
         
-        print(f"[Config] 📊 啟動次數: {boot_count + 1}")
+        debugPrint(f"[Config] 📊 啟動次數: {boot_count + 1}")
     
     # ========================================
     # 底層讀寫方法 (內部使用)
@@ -260,7 +261,7 @@ class ConfigManager:
             self.db.flush()
         
         action = "已覆蓋" if (key_bytes in self.db and overwrite) else "已創建"
-        print(f"[Config] ✓ {action}: {key} = {value}")
+        debugPrint(f"[Config] ✓ {action}: {key} = {value}")
         return True
     
     def read(self, key, default=None):
@@ -282,7 +283,7 @@ class ConfigManager:
         except KeyError:
             return default
         except Exception as e:
-            print(f"[Config] ✗ 讀取 '{key}' 出錯: {e}")
+            debugPrint(f"[Config] ✗ 讀取 '{key}' 出錯: {e}")
             return default
     
     def update(self, key, value, auto_flush=True):
@@ -311,9 +312,9 @@ class ConfigManager:
         
         # 提示信息
         if is_new:
-            print(f"[Config] ✓ 已創建: {key} = {value}")
+            debugPrint(f"[Config] ✓ 已創建: {key} = {value}")
         else:
-            print(f"[Config] ✓ 已更新: {key} = {value}")
+            debugPrint(f"[Config] ✓ 已更新: {key} = {value}")
         
         return True
     
@@ -336,7 +337,7 @@ class ConfigManager:
         
         if key_bytes not in self.db:
             if silent:
-                print(f"[Config] ⚠ 鍵 '{key}' 不存在,跳過刪除")
+                debugPrint(f"[Config] ⚠ 鍵 '{key}' 不存在,跳過刪除")
                 return False
             else:
                 raise KeyError(f"鍵 '{key}' 不存在")
@@ -347,7 +348,7 @@ class ConfigManager:
         if auto_flush:
             self.db.flush()
         
-        print(f"[Config] ✓ 已刪除: {key}")
+        debugPrint(f"[Config] ✓ 已刪除: {key}")
         return True
     
     def exists(self, key):
@@ -421,7 +422,7 @@ class ConfigManager:
         if auto_flush:
             self.db.flush()
         
-        print(f"[Config] ✓ 已清除 {len(keys_to_delete)} 個鍵 (前綴: {prefix or '全部'})")
+        debugPrint(f"[Config] ✓ 已清除 {len(keys_to_delete)} 個鍵 (前綴: {prefix or '全部'})")
         return len(keys_to_delete)
     
     # ========================================
@@ -459,9 +460,9 @@ class ConfigManager:
         self.update(full_key, value, auto_flush)
         
         if is_new:
-            print(f"[Config] ⚠ 注意: 配置 '{key}' 是新添加的,請考慮更新 startup_config.json")
+            debugPrint(f"[Config] ⚠ 注意: 配置 '{key}' 是新添加的,請考慮更新 startup_config.json")
         else:
-            print(f"[Config] ⚠ 注意: 配置 '{key}' 下次重啟會被 startup_config 覆蓋")
+            debugPrint(f"[Config] ⚠ 注意: 配置 '{key}' 下次重啟會被 startup_config 覆蓋")
     
     def get_state(self, key, default=None):
         """
@@ -658,19 +659,19 @@ class ConfigManager:
                         except:
                             pass
                         os.rename(self.startup_file, backup_file)
-                        print(f"[Config] ✓ 已備份到: {backup_file}")
+                        debugPrint(f"[Config] ✓ 已備份到: {backup_file}")
                 except Exception as e:
-                    print(f"[Config] ⚠ 備份失敗: {e}")
+                    debugPrint(f"[Config] ⚠ 備份失敗: {e}")
             
             # 保存新配置 (使用自定義格式化)
             with open(self.startup_file, 'w') as f:
                 f.write(self._format_dict(config))
             
-            print(f"[Config] ✓ 已保存當前配置到: {self.startup_file}")
+            debugPrint(f"[Config] ✓ 已保存當前配置到: {self.startup_file}")
         except Exception as e:
-            print(f"[Config] ✗ 保存啟動配置失敗: {e}")
+            debugPrint(f"[Config] ✗ 保存啟動配置失敗: {e}")
     
-    def print_info(self, show_config=True, show_state=True, show_user=True, show_meta=True):
+    def debugPrint_info(self, show_config=True, show_state=True, show_user=True, show_meta=True):
         """
         打印配置和狀態信息
         
@@ -680,58 +681,58 @@ class ConfigManager:
             show_user: 是否顯示用戶數據
             show_meta: 是否顯示元數據
         """
-        print("\n" + "="*70)
-        print("⚙️  配置管理器信息")
-        print("="*70)
+        debugPrint("\n" + "="*70)
+        debugPrint("⚙️  配置管理器信息")
+        debugPrint("="*70)
         
         # 配置信息
         if show_config:
             config = self.get_all_config()
-            print("\n📋 當前配置 (config.*):")
+            debugPrint("\n📋 當前配置 (config.*):")
             # 使用自定義格式化方法
-            print(self._format_dict(config))
+            debugPrint(self._format_dict(config))
         
         # 狀態信息
         if show_state:
             state = self.get_all_state()
             if state:
-                print("\n📊 運行狀態 (state.*):")
+                debugPrint("\n📊 運行狀態 (state.*):")
                 for key, value in state.items():
-                    print(f"  {key}: {value}")
+                    debugPrint(f"  {key}: {value}")
         
         # 用戶數據
         if show_user:
             user_items = self.items('user.')
             if user_items:
-                print("\n👤 用戶數據 (user.*):")
+                debugPrint("\n👤 用戶數據 (user.*):")
                 for key, value in user_items:
                     short_key = key[5:]  # 去掉 'user.' 前綴
-                    print(f"  {short_key}: {value}")
+                    debugPrint(f"  {short_key}: {value}")
         
         # 元數據
         if show_meta:
             meta_items = self.items('_meta.')
             if meta_items:
-                print("\n🔍 元數據 (_meta.*):")
+                debugPrint("\n🔍 元數據 (_meta.*):")
                 for key, value in meta_items:
                     short_key = key[6:]  # 去掉 '_meta.' 前綴
-                    print(f"  {short_key}: {value}")
+                    debugPrint(f"  {short_key}: {value}")
         
         # 統計信息
-        print("\n📈 統計:")
-        print(f"  總鍵數: {len(self.keys())}")
-        print(f"  配置項: {len(self.keys('config.'))}")
-        print(f"  狀態項: {len(self.keys('state.'))}")
-        print(f"  用戶項: {len(self.keys('user.'))}")
+        debugPrint("\n📈 統計:")
+        debugPrint(f"  總鍵數: {len(self.keys())}")
+        debugPrint(f"  配置項: {len(self.keys('config.'))}")
+        debugPrint(f"  狀態項: {len(self.keys('state.'))}")
+        debugPrint(f"  用戶項: {len(self.keys('user.'))}")
         
-        print("="*70 + "\n")
+        debugPrint("="*70 + "\n")
     
     def close(self):
         """關閉數據庫"""
         if self.db:
             self.db.flush()
             self.db.close()
-            print("[Config] ✓ 數據庫已關閉")
+            debugPrint("[Config] ✓ 數據庫已關閉")
         
         if self.f:
             self.f.close()

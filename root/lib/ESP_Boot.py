@@ -9,7 +9,7 @@ from lib.PCA9685 import *
 
 import usocket as socket
 import network ,webrepl
-
+from lib.globalMethod import debugPrint
 # ============================================
 # 全局變量
 # ============================================
@@ -22,21 +22,16 @@ webrepl_check_count = 0      # 全局計數器
 webrepl_timer = None
 wifi = None
 
-def debugPrint(dprint,debug=True):
-    if debug:
-        print(dprint)
-    else:
-        pass
-    return
+
 
 
 def check_looping(loop_one_success,cfg):
     global USER_CONNECT, wifi, webrepl_timer, webrepl_check_count
     
     if not loop_one_success:
-        print(f"{'='*70}")
-        print("📡 首次循環未成功,啟動網絡服務...")
-        print(f"{'='*70}\n")
+        debugPrint(f"{'='*70}")
+        debugPrint("📡 首次循環未成功,啟動網絡服務...")
+        debugPrint(f"{'='*70}\n")
         
         try:
             # 初始化 WiFi
@@ -48,20 +43,20 @@ def check_looping(loop_one_success,cfg):
                 
                 # 顯示連接信息
                 info = wifi.get_connection_info()
-                print(f"📱 WebREPL 連接信息:")
-                print(f"  URL: ws://{info['ip']}:8266")
-                print(f"  IP: {info['ip']}")
-                print(f"  mDNS: {info['mdns_name']}")
-                print(f"  密碼: 12345678")
+                debugPrint(f"📱 WebREPL 連接信息:")
+                debugPrint(f"  URL: ws://{info['ip']}:8266")
+                debugPrint(f"  IP: {info['ip']}")
+                debugPrint(f"  mDNS: {info['mdns_name']}")
+                debugPrint(f"  密碼: 12345678")
                 
-                print(f"\n⏰ 啟動定期檢查:")
-                print(f"  檢查間隔: {WEBREPL_CHECK_INTERVAL} 秒")
-                print(f"  檢查次數: {WEBREPL_MAX_CHECKS} 次")
-                print(f"  總等待時間: {WEBREPL_CHECK_INTERVAL * WEBREPL_MAX_CHECKS} 秒")
+                debugPrint(f"\n⏰ 啟動定期檢查:")
+                debugPrint(f"  檢查間隔: {WEBREPL_CHECK_INTERVAL} 秒")
+                debugPrint(f"  檢查次數: {WEBREPL_MAX_CHECKS} 次")
+                debugPrint(f"  總等待時間: {WEBREPL_CHECK_INTERVAL * WEBREPL_MAX_CHECKS} 秒")
                 
-                print(f"\n💡 連接後請執行:")
-                print(f"  >>> USER_CONNECT = True")
-                print(f"{'='*70}\n")
+                debugPrint(f"\n💡 連接後請執行:")
+                debugPrint(f"  >>> USER_CONNECT = True")
+                debugPrint(f"{'='*70}\n")
                 
                 # 啟動周期性計時器 - 使用虛擬計時器
                 webrepl_timer = Timer(0) 
@@ -71,20 +66,20 @@ def check_looping(loop_one_success,cfg):
                     callback=webrepl_check_handler
                 )
                 
-                print(f"✓ 計時器已啟動 (每 {WEBREPL_CHECK_INTERVAL} 秒檢查一次)\n")
+                debugPrint(f"✓ 計時器已啟動 (每 {WEBREPL_CHECK_INTERVAL} 秒檢查一次)\n")
             else:
-                print(f"⚠ WiFi 連接失敗,跳過網絡服務\n")
+                debugPrint(f"⚠ WiFi 連接失敗,跳過網絡服務\n")
         
         except Exception as e:
-            print(f"✗ 網絡初始化失敗: {e}\n")
+            debugPrint(f"✗ 網絡初始化失敗: {e}\n")
             import sys
-            sys.print_exception(e)
+            sys.debugPrint_exception(e)
             wifi = None
 
     else:
-        print(f"{'='*70}")
-        print("⏭️  上次循環成功,跳過網絡服務")
-        print(f"{'='*70}\n")
+        debugPrint(f"{'='*70}")
+        debugPrint("⏭️  上次循環成功,跳過網絡服務")
+        debugPrint(f"{'='*70}\n")
     
     
     return
@@ -109,59 +104,59 @@ def webrepl_check_handler(timer):
     remaining_checks = WEBREPL_MAX_CHECKS - webrepl_check_count
     remaining_time = remaining_checks * WEBREPL_CHECK_INTERVAL
     
-    print(f"\n{'='*70}")
-    print(f"⏰ WebREPL 檢查 [{webrepl_check_count}/{WEBREPL_MAX_CHECKS}]")
-    print(f"{'='*70}")
+    debugPrint(f"\n{'='*70}")
+    debugPrint(f"⏰ WebREPL 檢查 [{webrepl_check_count}/{WEBREPL_MAX_CHECKS}]")
+    debugPrint(f"{'='*70}")
     
     # 檢查用戶是否已連接
     if USER_CONNECT:
-        print("✅ 檢測到用戶已連接!")
-        print("🌐 網絡服務將保持運行")
-        print(f"{'='*70}\n")
+        debugPrint("✅ 檢測到用戶已連接!")
+        debugPrint("🌐 網絡服務將保持運行")
+        debugPrint(f"{'='*70}\n")
         
         # 停止計時器
         if webrepl_timer:
             webrepl_timer.deinit()
             webrepl_timer = None
-            print("✓ 計時器已停止\n")
+            debugPrint("✓ 計時器已停止\n")
     
     # 檢查是否達到最大次數
     elif webrepl_check_count >= WEBREPL_MAX_CHECKS:
-        print(f"⏰ 已達到最大等待時間 ({(WEBREPL_CHECK_INTERVAL * WEBREPL_MAX_CHECKS)//60 } 分鐘)")
-        print("❌ 未檢測到用戶連接")
-        print("🧹 正在關閉網絡服務...")
+        debugPrint(f"⏰ 已達到最大等待時間 ({(WEBREPL_CHECK_INTERVAL * WEBREPL_MAX_CHECKS)//60 } 分鐘)")
+        debugPrint("❌ 未檢測到用戶連接")
+        debugPrint("🧹 正在關閉網絡服務...")
         
         try:
             webrepl.stop()
-            print("  ✓ WebREPL 已停止")
+            debugPrint("  ✓ WebREPL 已停止")
         except Exception as e:
-            print(f"  ⚠ 停止 WebREPL 失敗: {e}")
+            debugPrint(f"  ⚠ 停止 WebREPL 失敗: {e}")
         
         try:
             if wifi:
                 wifi.disconnect()
-                print("  ✓ WiFi 已斷開")
+                debugPrint("  ✓ WiFi 已斷開")
         except Exception as e:
-            print(f"  ⚠ 斷開 WiFi 失敗: {e}")
+            debugPrint(f"  ⚠ 斷開 WiFi 失敗: {e}")
         
-        print(f"{'='*70}\n")
+        debugPrint(f"{'='*70}\n")
         
         # 停止計時器
         if webrepl_timer:
             webrepl_timer.deinit()
             webrepl_timer = None
-            print("✓ 計時器已停止\n")
+            debugPrint("✓ 計時器已停止\n")
     
     # 繼續等待
     else:
-        print(f"⏳ 等待用戶連接...")
-        print(f"⏱️  剩餘時間: {remaining_time} 秒 ({remaining_checks} 次檢查)")
-        print(f"\n💡 如果你已通過 WebREPL 連接,請執行:")
-        print(f"  >>> USER_CONNECT = True")
-        print(f"或:")
-        print(f"  >>> import main")
-        print(f"  >>> main.USER_CONNECT = True")
-        print(f"{'='*70}\n")
+        debugPrint(f"⏳ 等待用戶連接...")
+        debugPrint(f"⏱️  剩餘時間: {remaining_time} 秒 ({remaining_checks} 次檢查)")
+        debugPrint(f"\n💡 如果你已通過 WebREPL 連接,請執行:")
+        debugPrint(f"  >>> USER_CONNECT = True")
+        debugPrint(f"或:")
+        debugPrint(f"  >>> import main")
+        debugPrint(f"  >>> main.USER_CONNECT = True")
+        debugPrint(f"{'='*70}\n")
         
 def init_Network(config):
     
@@ -190,7 +185,7 @@ def init_Network(config):
     _wifi.connect()
     
     # 打印信息
-    _wifi.print_info()
+    _wifi.debugPrint_info()
     
     return _wifi
 
@@ -213,11 +208,11 @@ def init_i2c(led_io):
     i2c_led_list = []
     if led_io['enable'] :
         for i2cc in led_io['i2c_List']:
-            print(i2cc['GPIO']['scl'],i2cc['GPIO']['sda'])
+            debugPrint(i2cc['GPIO']['scl'],i2cc['GPIO']['sda'])
             i2c = I2C(scl=i2cc['GPIO']['scl'], sda=i2cc['GPIO']['sda'])
-            #print(i2c.scan())
+            #debugPrint(i2c.scan())
             for i in i2c.scan():
-                print(hex(i))
+                debugPrint(hex(i))
             for i in i2cc['address']:
                 try:
                     pca = PCA9685(i2c,address=int(i,16))
@@ -230,7 +225,7 @@ def init_i2c(led_io):
                     i2c_led_list.append(ledPwm)
 
                 except BaseException as e:
-                    print(f'missing address : {i}')
+                    debugPrint(f'missing address : {i}')
                     led_IO = {'led_IO':None,'Q':16}
                     ledPwm = LEDcontroller('v_i2c_LED',led_IO)
                     i2c_led_list.append(ledPwm)
@@ -251,7 +246,7 @@ def init_rgb(led_io):
             led_IO = {'led_IO':i['GPIO'],'Q':i['Q'],'i2c_Object':''}
             rgb = LEDcontroller('RGB',led_IO)
             rgb_l.append(rgb)
-#     print(rgb_l)
+#     debugPrint(rgb_l)
     return rgb_l
 
 def init_i2s(led_io):
