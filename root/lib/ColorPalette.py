@@ -206,178 +206,122 @@ class ColorPalette:
         return colors
 
 
-# ============ 預定義調色盤 (FastLED風格) ============
 
-# 彩虹調色盤
-RAINBOW_PALETTE = (
-    0, 255, 0, 0,      # 紅
-    42, 255, 165, 0,   # 橙
-    85, 255, 255, 0,   # 黃
-    128, 0, 255, 0,    # 綠
-    170, 0, 0, 255,    # 藍
-    213, 75, 0, 130,   # 靛
-    255, 238, 130, 238 # 紫
-)
-
-# 火焰調色盤
-FIRE_PALETTE = (
-    0, 0, 0, 0,        # 黑
-    64, 128, 0, 0,     # 深紅
-    128, 255, 0, 0,    # 紅
-    192, 255, 128, 0,  # 橙
-    255, 255, 255, 0   # 黃白
-)
-
-# 海洋調色盤
-OCEAN_PALETTE = (
-    0, 0, 0, 128,      # 深藍
-    85, 0, 128, 255,   # 藍
-    170, 0, 255, 255,  # 青
-    255, 200, 255, 255 # 淺青
-)
-
-# 森林調色盤
-FOREST_PALETTE = (
-    0, 0, 64, 0,       # 深綠
-    128, 0, 128, 0,    # 綠
-    200, 128, 255, 0,  # 黃綠
-    255, 200, 255, 100 # 淺黃綠
-)
-
-# 日落調色盤
-SUNSET_PALETTE = (
-    0, 25, 25, 112,    # 深藍
-    64, 255, 140, 0,   # 深橙
-    128, 255, 69, 0,   # 橙紅
-    192, 255, 215, 0,  # 金色
-    255, 255, 255, 224 # 淺黃
-)
-
-# 霓虹調色盤
-NEON_PALETTE = (
-    0, 255, 0, 255,    # 品紅
-    64, 0, 255, 255,   # 青
-    128, 0, 255, 0,    # 綠
-    192, 255, 255, 0,  # 黃
-    255, 255, 0, 255   # 品紅
-)
-
-
-def create_palette_effect(led_no=8, palette=RAINBOW_PALETTE, speed=1, 
-                         reverse=False, scroll_speed=2):
-    """
-    調色盤滾動效果
-    
-    參數:
-        led_no: LED數量
-        palette: 調色盤數據
-        speed: 幀速度
-        reverse: 是否反向
-        scroll_speed: 調色盤滾動速度
-    
-    返回:
-        生成器,yield RGB值列表
-    """
-    pal = ColorPalette(palette)
-    offset = 0
-    
-    while True:
-        rgb_buffer = []
-        
-        for i in range(led_no):
-            # 計算當前LED在調色盤中的位置
-            position = (offset + i * (256 // led_no)) % 256
-            rgb = pal.get_color(position)
-            rgb_buffer.append(rgb)
-        
-        # 滾動調色盤
-        offset = (offset + scroll_speed) % 256
-        
-        # 輸出
-        for _ in range(speed):
-            if reverse:
-                yield rgb_buffer[::-1]
-            else:
-                yield rgb_buffer.copy()
-
-
-# ============ HSV轉RGB工具 ============
-
-def hsv_to_rgb(h, s, v):
-    """
-    HSV轉RGB
-    
-    參數:
-        h: 色相 (0-360)
-        s: 飽和度 (0-100)
-        v: 明度 (0-100)
-    
-    返回:
-        (r, g, b) 元組,範圍0-255
-    """
-    h = h % 360
-    s = max(0, min(100, s)) / 100.0
-    v = max(0, min(100, v)) / 100.0
-    
-    c = v * s
-    x = c * (1 - abs((h / 60.0) % 2 - 1))
-    m = v - c
-    
-    if h < 60:
-        r, g, b = c, x, 0
-    elif h < 120:
-        r, g, b = x, c, 0
-    elif h < 180:
-        r, g, b = 0, c, x
-    elif h < 240:
-        r, g, b = 0, x, c
-    elif h < 300:
-        r, g, b = x, 0, c
-    else:
-        r, g, b = c, 0, x
-    
-    r = int((r + m) * 255)
-    g = int((g + m) * 255)
-    b = int((b + m) * 255)
-    
-    return (r, g, b)
-
-
-def rgb_to_hsv(r, g, b):
-    """
-    RGB轉HSV
-    
-    參數:
-        r, g, b: RGB值,範圍0-255
-    
-    返回:
-        (h, s, v) 元組
-        h: 色相 0-360
-        s: 飽和度 0-100
-        v: 明度 0-100
-    """
-    r, g, b = r / 255.0, g / 255.0, b / 255.0
-    
-    max_val = max(r, g, b)
-    min_val = min(r, g, b)
-    diff = max_val - min_val
-    
-    # 計算色相
-    if diff == 0:
-        h = 0
-    elif max_val == r:
-        h = 60 * (((g - b) / diff) % 6)
-    elif max_val == g:
-        h = 60 * (((b - r) / diff) + 2)
-    else:
-        h = 60 * (((r - g) / diff) + 4)
-    
-    # 計算飽和度
-    s = 0 if max_val == 0 else (diff / max_val) * 100
-    
-    # 計算明度
-    v = max_val * 100
-    
-    return (h, s, v)
+# def create_palette_effect(led_no=8, palette=RAINBOW_PALETTE, speed=1, 
+#                          reverse=False, scroll_speed=2):
+#     """
+#     調色盤滾動效果
+#     
+#     參數:
+#         led_no: LED數量
+#         palette: 調色盤數據
+#         speed: 幀速度
+#         reverse: 是否反向
+#         scroll_speed: 調色盤滾動速度
+#     
+#     返回:
+#         生成器,yield RGB值列表
+#     """
+#     pal = ColorPalette(palette)
+#     offset = 0
+#     
+#     while True:
+#         rgb_buffer = []
+#         
+#         for i in range(led_no):
+#             # 計算當前LED在調色盤中的位置
+#             position = (offset + i * (256 // led_no)) % 256
+#             rgb = pal.get_color(position)
+#             rgb_buffer.append(rgb)
+#         
+#         # 滾動調色盤
+#         offset = (offset + scroll_speed) % 256
+#         
+#         # 輸出
+#         for _ in range(speed):
+#             if reverse:
+#                 yield rgb_buffer[::-1]
+#             else:
+#                 yield rgb_buffer.copy()
+# 
+# 
+# # ============ HSV轉RGB工具 ============
+# 
+# def hsv_to_rgb(h, s, v):
+#     """
+#     HSV轉RGB
+#     
+#     參數:
+#         h: 色相 (0-360)
+#         s: 飽和度 (0-100)
+#         v: 明度 (0-100)
+#     
+#     返回:
+#         (r, g, b) 元組,範圍0-255
+#     """
+#     h = h % 360
+#     s = max(0, min(100, s)) / 100.0
+#     v = max(0, min(100, v)) / 100.0
+#     
+#     c = v * s
+#     x = c * (1 - abs((h / 60.0) % 2 - 1))
+#     m = v - c
+#     
+#     if h < 60:
+#         r, g, b = c, x, 0
+#     elif h < 120:
+#         r, g, b = x, c, 0
+#     elif h < 180:
+#         r, g, b = 0, c, x
+#     elif h < 240:
+#         r, g, b = 0, x, c
+#     elif h < 300:
+#         r, g, b = x, 0, c
+#     else:
+#         r, g, b = c, 0, x
+#     
+#     r = int((r + m) * 255)
+#     g = int((g + m) * 255)
+#     b = int((b + m) * 255)
+#     
+#     return (r, g, b)
+# 
+# 
+# def rgb_to_hsv(r, g, b):
+#     """
+#     RGB轉HSV
+#     
+#     參數:
+#         r, g, b: RGB值,範圍0-255
+#     
+#     返回:
+#         (h, s, v) 元組
+#         h: 色相 0-360
+#         s: 飽和度 0-100
+#         v: 明度 0-100
+#     """
+#     r, g, b = r / 255.0, g / 255.0, b / 255.0
+#     
+#     max_val = max(r, g, b)
+#     min_val = min(r, g, b)
+#     diff = max_val - min_val
+#     
+#     # 計算色相
+#     if diff == 0:
+#         h = 0
+#     elif max_val == r:
+#         h = 60 * (((g - b) / diff) % 6)
+#     elif max_val == g:
+#         h = 60 * (((b - r) / diff) + 2)
+#     else:
+#         h = 60 * (((r - g) / diff) + 4)
+#     
+#     # 計算飽和度
+#     s = 0 if max_val == 0 else (diff / max_val) * 100
+#     
+#     # 計算明度
+#     v = max_val * 100
+#     
+#     return (h, s, v)
 
 

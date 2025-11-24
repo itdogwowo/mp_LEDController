@@ -258,15 +258,15 @@ ledC.run_Pattern(
 
 | 操作 | 時間 | 說明 |
 |------|------|------|
-| 正弦波計算 (查表) | ~5μs | 65536點表 |
-| HSV→RGB 轉換 | ~15μs | Viper優化 |
-| 60 LED 更新 | ~800μs | WS2812 |
-| Pattern 幀處理 | ~2ms | 包含顯示 |
+| 正弦波計算 (查表) | ~16μs | 65536點表 |
+| HSV→RGB 轉換 | ~16μs | Viper優化 |
+| 60 LED 更新 | ~1800μs | WS2812 |
+| Pattern 幀處理 | ~20ms | 包含顯示 |
 
-記憶體使用:
+<!-- 記憶體使用:
 - 正弦查找表: 128KB (一次性)
 - 單個 LED 控制器: ~200 bytes
-- Pattern Generator: ~100 bytes
+- Pattern Generator: ~100 bytes -->
 
 ## 🛠️ API 參考
 

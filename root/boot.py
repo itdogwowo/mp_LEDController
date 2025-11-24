@@ -25,7 +25,7 @@ KEEP_RUN = True
 cfg = ConfigManager(startup_file='startup_config.json')
 print('='*70)
 loop_one_success = cfg.get_state('loop_one_success', default=False)
-cfg.set_state('loop_one_success', False)
+# cfg.set_state('loop_one_success', False)
 
 # cfg.set_state('loop_one_success', True)
 # check_looping(True,cfg)

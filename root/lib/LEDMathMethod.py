@@ -778,7 +778,7 @@ class LEDMathMethod:
         if led_Pattern[0]['type'] == 'starter':
             sp = led_Pattern.pop(0)
             for i in range(sp['end_Time']):
-                yield 
+                yield 0
 
 
         for i in led_Pattern:
