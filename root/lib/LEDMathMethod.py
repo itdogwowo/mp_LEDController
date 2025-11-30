@@ -671,40 +671,80 @@ class LEDMathMethod:
 
             ]
     """
+#     def __init__(self):
+#         self.SCALE = 2048
+#         self.TABLE_SIZE = 65536
+# 
+#         self.grb = bytearray(3)
+# 
+#         self.sin_table = open('/buf/sin_table.bin', 'rb')       
+# 
+#         self._sin_table = array.array('H', self.sin_table.read())
+        
+    @micropython.viper
     def __init__(self):
         self.SCALE = 2048
         self.TABLE_SIZE = 65536
-
         self.grb = bytearray(3)
-
-        self.sin_table = open('/buf/sin_table.bin', 'rb')       
-
-        self._sin_table = array.array('H', self.sin_table.read())
-
+        self.sin_table = open('/buf/sin_table.bin', 'rb')
+        self._sin_table = array.array('H', self.sin_table.read(16384 * 2))
+        self.sin_table.close()
 
 
     @micropython.viper
     def keep_now(self,F, l_max, phi, fs,t):
         return l_max
 
+    
     @micropython.viper  
     def is_math_now(self,F:int, l_max:int, phi:int, fs:int,t:int) ->int:
         _step = (phi + ((65536 * F*t) // 10 // fs))%65536
-        tbl = ptr16(self._sin_table) # 本地變數存取更快
-        return (tbl[_step] * l_max) >> 12
+        tbl = ptr16(self._quarter_table) # 本地變數存取更快
+        
+        if _step < 16384:  # 第一象限
+            result = tbl[_step]
+        elif _step < 32768:  # 第二象限
+            result = tbl[32767 - _step]
+        elif _step < 49152:  # 第三象限
+            result = 4096 - tbl[_step - 32768]
+        else:  # 第四象限
+            result = 4096 - tbl[65535 - _step]
+        
+        return (result * l_max) >> 12
+    
+    
 
     @micropython.viper
     def is_square_wave_now(self,F:int, l_max:int, phi:int, fs:int,t:int) ->int:
         _step = (phi + ((65536 * F*t) // 10 // fs))%65536
         tbl = ptr16(self._sin_table)
-        return  l_max if (tbl[_step] * l_max) >> 12 >=2048 else 0
+        if _step < 16384:  # 第一象限
+            result = tbl[_step]
+        elif _step < 32768:  # 第二象限
+            result = tbl[32767 - _step]
+        elif _step < 49152:  # 第三象限
+            result = 4096 - tbl[_step - 32768]
+        else:  # 第四象限
+            result = 4096 - tbl[65535 - _step]
+            
+            
+        return  l_max if (result * l_max) >> 12 >=2048 else 0
 
 
     @micropython.viper
     def is_square_True_now(self,F:int, l_max:int, phi:int, fs:int,t:int) ->int:
         _step = (phi + ((65536 * F*t) // 10 // fs))%65536
         tbl = ptr16(self._sin_table)
-        return  1 if tbl[_step] >> 12 >=2048 else 0
+        if _step < 16384:  # 第一象限
+            result = tbl[_step]
+        elif _step < 32768:  # 第二象限
+            result = tbl[32767 - _step]
+        elif _step < 49152:  # 第三象限
+            result = 4096 - tbl[_step - 32768]
+        else:  # 第四象限
+            result = 4096 - tbl[65535 - _step]
+            
+        return  1 if result >> 12 >=2048 else 0
 
     ###########################################################################
 
@@ -719,7 +759,16 @@ class LEDMathMethod:
         _step = (phi + __step )%65536
         tbl = self._sin_table  # 本地變數存取更快
         for i in range(fs):
-            yield (tbl[_step] * l_max) >> 12
+            if _step < 16384:  # 第一象限
+                result = tbl[_step]
+            elif _step < 32768:  # 第二象限
+                result = tbl[32767 - _step]
+            elif _step < 49152:  # 第三象限
+                result = 4096 - tbl[_step - 32768]
+            else:  # 第四象限
+                result = 4096 - tbl[65535 - _step]
+            
+            yield (result * l_max) >> 12
             _step = (_step + __step)%65536
 
     @micropython.native
@@ -728,7 +777,16 @@ class LEDMathMethod:
         _step = (phi + __step )%65536
         tbl = self._sin_table
         for i in range(fs):
-            yield  l_max if (tbl[_step]) >> 12 >=2047 else 0
+            if _step < 16384:  # 第一象限
+                result = tbl[_step]
+            elif _step < 32768:  # 第二象限
+                result = tbl[32767 - _step]
+            elif _step < 49152:  # 第三象限
+                result = 4096 - tbl[_step - 32768]
+            else:  # 第四象限
+                result = 4096 - tbl[65535 - _step]
+                
+            yield  l_max if (result) >> 12 >=2047 else 0
             _step = (_step + __step)%65536
 
 
@@ -738,7 +796,16 @@ class LEDMathMethod:
         _step = (phi + __step )%65536
         tbl = self._sin_table
         for i in range(fs):
-            yield  l_max if (tbl[_step]) >> 12 >=pulse else 0
+            if _step < 16384:  # 第一象限
+                result = tbl[_step]
+            elif _step < 32768:  # 第二象限
+                result = tbl[32767 - _step]
+            elif _step < 49152:  # 第三象限
+                result = 4096 - tbl[_step - 32768]
+            else:  # 第四象限
+                result = 4096 - tbl[65535 - _step]
+                
+            yield  l_max if (result) >> 12 >=pulse else 0
             _step = (_step + __step)%65536
 
     @micropython.native 
@@ -764,7 +831,16 @@ class LEDMathMethod:
         _step = (phi + __step )%65536
         tbl = self._sin_table
         for i in range(fs):
-            yield  True if tbl[_step] >> 12 >=2047 else False
+            if _step < 16384:  # 第一象限
+                result = tbl[_step]
+            elif _step < 32768:  # 第二象限
+                result = tbl[32767 - _step]
+            elif _step < 49152:  # 第三象限
+                result = 4096 - tbl[_step - 32768]
+            else:  # 第四象限
+                result = 4096 - tbl[65535 - _step]
+                
+            yield  True if result >> 12 >=2047 else False
             _step = (_step + __step)%65536
 
 

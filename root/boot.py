@@ -23,7 +23,7 @@ KEEP_RUN = True
 
 # 初始化配置管理器
 cfg = ConfigManager(startup_file='startup_config.json')
-print('='*70)
+# print('='*70)
 loop_one_success = cfg.get_state('loop_one_success', default=False)
 # cfg.set_state('loop_one_success', False)
 
