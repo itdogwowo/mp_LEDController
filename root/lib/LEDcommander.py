@@ -190,7 +190,7 @@ class LEDcommander:
             time.sleep_ms(remaining)
             if channel == 0:
                 self._Channel_0_buffer_Time = max(-1000, self._Channel_0_buffer_Time + remaining)
-            elif remaining == 1:
+            elif channel == 1:
                 self._Channel_1_buffer_Time = max(-1000, self._Channel_1_buffer_Time + remaining)
             else:
                 self.buffer_Time = max(-1000, self.buffer_Time + remaining)
