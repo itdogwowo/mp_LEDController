@@ -606,3 +606,172 @@ class ILI9341(TFT):
     def _update_inversion(self):
         """更新顏色反轉設置"""
         self.write_cmd(self._get_inversion_cmd())
+        
+        
+        
+class GC9D01(TFT):
+    def __init__(self, spi, dc, cs, rst, width=240, height=240, rotation=0, color_order="RGB", invert=False):
+        super().__init__(spi, dc, cs, rst, width, height)
+        self._rotation = rotation
+        self._color_order = color_order.upper()
+        self._inverted = invert
+        self.init()
+    
+    def init(self):
+        # 根據您提供的初始化序列重新編寫
+        init_cmds = [
+            (0xFE, None),       # 切換命令頁
+            (0xEF, None),       # 系統功能啟用
+            
+            # 一系列配置寄存器設置
+            (0x80, b'\xFF'), (0x81, b'\xFF'), (0x82, b'\xFF'), (0x83, b'\xFF'),
+            (0x84, b'\xFF'), (0x85, b'\xFF'), (0x86, b'\xFF'), (0x87, b'\xFF'),
+            (0x88, b'\xFF'), (0x89, b'\xFF'), (0x8A, b'\xFF'), (0x8B, b'\xFF'),
+            (0x8C, b'\xFF'), (0x8D, b'\xFF'), (0x8E, b'\xFF'), (0x8F, b'\xFF'),
+            
+            (0x3A, b'\x05'),    # 像素格式設置 (16位RGB565)
+            (0xEC, b'\x01'),    # 未知功能設置
+            
+            # 複雜的寄存器配置
+            (0x74, b'\x02\x0E\x00\x00\x00\x00\x00'),  # 時序控制
+            (0x98, b'\x3E'), (0x99, b'\x3E'),         # 門控控制
+            (0xB5, b'\x0D\x0D'),                      # 空白設置
+            
+            # 電源相關設置
+            (0x60, b'\x38\x0F\x79\x67'),              # 電源控制1
+            (0x61, b'\x38\x11\x79\x67'),              # 電源控制2  
+            (0x64, b'\x38\x17\x71\x5F\x79\x67'),      # 電源控制3
+            (0x65, b'\x38\x13\x71\x5B\x79\x67'),      # 電源控制4
+            
+            (0x6A, b'\x00\x00'),                      # 幀率控制
+            (0x6C, b'\x22\x02\x22\x02\x22\x22\x50'),  # 接口控制
+            
+            # Gamma 校正設置 (很長的序列)
+            (0x6E, b'\x03\x03\x01\x01\x00\x00\x0F\x0F\x0D\x0D\x0B\x0B\x09\x09'
+                   b'\x00\x00\x00\x00\x0A\x0A\x0C\x0C\x0E\x0E\x10\x10\x00\x00'
+                   b'\x02\x02\x04\x04'),
+            
+            (0xBF, b'\x01'),    # 功能控制
+            (0xF9, b'\x40'),    # 功能設置
+            
+            # 更多配置
+            (0x9B, b'\x3B'),    # VCOM 控制
+            (0x93, b'\x33\x7F\x00'),  # 電源優化
+            (0x7E, b'\x30'),    # 部分模式控制
+            
+            # 額外的時序設置
+            (0x70, b'\x0D\x02\x08\x0D\x02\x08'),
+            (0x71, b'\x0D\x02\x08'),
+            (0x91, b'\x0E\x09'),
+            
+            # 電源控制
+            (0xC3, b'\x19'), (0xC4, b'\x19'), (0xC9, b'\x3C'),
+            
+            # Gamma 曲線設定
+            (0xF0, b'\x53\x15\x0A\x04\x00\x3E'),
+            (0xF2, b'\x53\x15\x0A\x04\x00\x3A'),
+            (0xF1, b'\x56\xA8\x7F\x33\x34\x5F'),
+            (0xF3, b'\x52\xA4\x7F\x33\x34\xDF'),
+            
+            # 內存訪問控制 (將在後面根據旋轉重新設置)
+            (0x36, self._get_madctl_cmd()),
+            
+            # 退出睡眠模式
+            (0x11, None),
+        ]
+        
+        # 執行初始化命令
+        for cmd, data in init_cmds:
+            self.write_cmd_data(cmd, data)
+            time.sleep_ms(5)
+        
+        # 等待200ms (根據您提供的Delay(200))
+        time.sleep_ms(200)
+        
+        # 開啟顯示
+        self.write_cmd(0x29)
+        time.sleep_ms(50)
+        
+        # 設置窗口
+        self.set_window(0, 0)
+    
+    def _get_madctl_cmd(self):
+        """獲取內存訪問控制命令值"""
+        # GC9D01 MADCTL 位定義:
+        # MY: 行地址順序 (0: 從上到下, 1: 從下到上)
+        # MX: 列地址順序 (0: 從左到右, 1: 從右到左)  
+        # MV: 行/列交換 (0: 正常, 1: 交換)
+        # ML: 垂直刷新順序
+        # RGB: RGB/BGR順序 (0: RGB, 1: BGR)
+        # MH: 水平刷新順序
+        
+        rotation_settings = {
+            0: 0x00,   # 正常方向
+            90: 0x60,  # 旋轉90度 (MV=1, MX=1)
+            180: 0xC0, # 旋轉180度 (MY=1, MX=1)  
+            270: 0xA0  # 旋轉270度 (MY=1, MV=1)
+        }
+        
+        base = rotation_settings.get(self._rotation, 0x00)
+        
+        # 設置顏色順序 (RGB/BGR)
+        if self._color_order == "BGR":
+            base |= 0x08  # 設置BGR模式
+        
+        return bytes([base])
+    
+    def _get_inversion_cmd(self):
+        """獲取顏色反轉命令"""
+        return 0x21 if self._inverted else 0x20
+    
+    def _update_rotation(self):
+        """更新旋轉設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_color_order(self):
+        """更新顏色順序設置"""
+        self.write_cmd_data(0x36, self._get_madctl_cmd())
+    
+    def _update_inversion(self):
+        """更新顏色反轉設置"""
+        self.write_cmd(self._get_inversion_cmd())
+    
+    def set_window(self, x0, y0, x1=None, y1=None):
+        """設置顯示窗口"""
+        if x1 is None:
+            x1 = self.width - 1
+        if y1 is None:
+            y1 = self.height - 1
+        
+        # 確保坐標在顯示範圍內
+        x0 = max(0, min(x0, self.width - 1))
+        y0 = max(0, min(y0, self.height - 1))
+        x1 = max(0, min(x1, self.width - 1))
+        y1 = max(0, min(y1, self.height - 1))
+        
+        # 根據旋轉調整坐標映射
+        if self._rotation == 0:
+            col_start, col_end = x0, x1
+            row_start, row_end = y0, y1
+        elif self._rotation == 90:
+            col_start, col_end = y0, y1
+            row_start, row_end = x0, x1
+        elif self._rotation == 180:
+            col_start, col_end = self.width - 1 - x1, self.width - 1 - x0
+            row_start, row_end = self.height - 1 - y1, self.height - 1 - y0
+        elif self._rotation == 270:
+            col_start, col_end = self.height - 1 - y1, self.height - 1 - y0
+            row_start, row_end = self.width - 1 - x1, self.width - 1 - x0
+        
+        # 發送列地址設置
+        self.write_cmd(0x2A)
+        self.write_data(bytes([col_start >> 8, col_start & 0xFF, 
+                             col_end >> 8, col_end & 0xFF]))
+        
+        # 發送行地址設置
+        self.write_cmd(0x2B)
+        self.write_data(bytes([row_start >> 8, row_start & 0xFF,
+                             row_end >> 8, row_end & 0xFF]))
+        
+        # 開始內存寫入
+        self.write_cmd(0x2C)
