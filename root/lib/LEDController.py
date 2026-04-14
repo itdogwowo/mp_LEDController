@@ -37,7 +37,7 @@ def set_servo_angle(angle):
     pwm.duty_u16(duty)
 
 
-class LEDcontroller:
+class LEDController:
     '''
     LED控制器 - 精確度優化版 (0-4095範圍)
     
