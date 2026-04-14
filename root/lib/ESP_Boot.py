@@ -194,7 +194,7 @@ def init_i2c_led(i2c_led):
     re_ledPwm = []
 
     led_IO = {'led_IO':i2c_led,'Q':16}
-    ledPwm = LEDcontroller('i2c_LED',led_IO)
+    ledPwm = LEDController('i2c_LED',led_IO)
 
     return re_ledPwm
 
@@ -221,13 +221,13 @@ def init_i2c(led_io):
                     # i2c_led_list.append(i2c_Object)
 
                     led_IO = {'led_IO':pca,'Q':16}
-                    ledPwm = LEDcontroller('i2c_LED',led_IO)
+                    ledPwm = LEDController('i2c_LED',led_IO)
                     i2c_led_list.append(ledPwm)
 
                 except BaseException as e:
                     debugPrint(f'missing address : {i}')
                     led_IO = {'led_IO':None,'Q':16}
-                    ledPwm = LEDcontroller('v_i2c_LED',led_IO)
+                    ledPwm = LEDController('v_i2c_LED',led_IO)
                     i2c_led_list.append(ledPwm)
                     
     return i2c_led_list
@@ -236,7 +236,7 @@ def init_led(led_io):
     led_l = []
     if led_io['enable'] :
         led_IO = {'led_IO':led_io['GPIO_List'],'Q':len(led_io['GPIO_List']),'i2c_Object':''}
-        led_l.append(LEDcontroller('esp_LED',led_IO))
+        led_l.append(LEDController('esp_LED',led_IO))
     return led_l
 
 def init_rgb(led_io):
@@ -244,7 +244,7 @@ def init_rgb(led_io):
     if led_io['enable'] :
         for i in led_io['GPIO'] :
             led_IO = {'led_IO':i['GPIO'],'Q':i['Q'],'i2c_Object':''}
-            rgb = LEDcontroller('RGB',led_IO)
+            rgb = LEDController('RGB',led_IO)
             rgb_l.append(rgb)
 #     debugPrint(rgb_l)
     return rgb_l

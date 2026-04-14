@@ -658,8 +658,6 @@ def fade_out(_self, now):
 
     return
 
-import array
-
 class LEDMathMethod:
     """
     pattern = [
@@ -671,24 +669,45 @@ class LEDMathMethod:
 
             ]
     """
-#     def __init__(self):
-#         self.SCALE = 2048
-#         self.TABLE_SIZE = 65536
-# 
-#         self.grb = bytearray(3)
-# 
-#         self.sin_table = open('/buf/sin_table.bin', 'rb')       
-# 
-#         self._sin_table = array.array('H', self.sin_table.read())
-        
-    @micropython.viper
     def __init__(self):
         self.SCALE = 2048
         self.TABLE_SIZE = 65536
         self.grb = bytearray(3)
-        self.sin_table = open('/buf/sin_table.bin', 'rb')
-        self._sin_table = array.array('H', self.sin_table.read(16384 * 2))
-        self.sin_table.close()
+
+    @micropython.viper
+    def _sin_q12(self, phase: int) -> int:
+        p = phase & 65535
+        if p < 32768:
+            x = p
+            sgn = 1
+        else:
+            x = p - 32768
+            sgn = -1
+
+        y = (x * (32768 - x)) >> 16
+        y2 = (y * y) >> 12
+        y = y + ((922 * (y2 - y)) >> 12)
+        return y if sgn > 0 else -y
+
+    @micropython.viper
+    def _wave01_q12(self, phase: int) -> int:
+        p = phase & 65535
+        if p < 32768:
+            x = p
+            sgn = 1
+        else:
+            x = p - 32768
+            sgn = -1
+
+        s = (x * (32768 - x)) >> 16
+        s2 = (s * s) >> 12
+        s = s + ((922 * (s2 - s)) >> 12)
+        if sgn < 0:
+            s = -s
+        w = (s + 4096) >> 1
+        if w > 4095:
+            w = 4095
+        return w
 
 
     @micropython.viper
@@ -698,53 +717,61 @@ class LEDMathMethod:
     
     @micropython.viper  
     def is_math_now(self,F:int, l_max:int, phi:int, fs:int,t:int) ->int:
-        _step = (phi + ((65536 * F*t) // 10 // fs))%65536
-        tbl = ptr16(self._quarter_table) # 本地變數存取更快
-        
-        if _step < 16384:  # 第一象限
-            result = tbl[_step]
-        elif _step < 32768:  # 第二象限
-            result = tbl[32767 - _step]
-        elif _step < 49152:  # 第三象限
-            result = 4096 - tbl[_step - 32768]
-        else:  # 第四象限
-            result = 4096 - tbl[65535 - _step]
-        
-        return (result * l_max) >> 12
+        _step = (phi + ((65536 * F * t) // 10 // fs)) & 65535
+        p = _step
+        if p < 32768:
+            x = p
+            sgn = 1
+        else:
+            x = p - 32768
+            sgn = -1
+
+        s = (x * (32768 - x)) >> 16
+        s2 = (s * s) >> 12
+        s = s + ((922 * (s2 - s)) >> 12)
+        if sgn < 0:
+            s = -s
+        w = (s + 4096) >> 1
+        return (w * l_max) >> 12
     
     
 
     @micropython.viper
     def is_square_wave_now(self,F:int, l_max:int, phi:int, fs:int,t:int) ->int:
-        _step = (phi + ((65536 * F*t) // 10 // fs))%65536
-        tbl = ptr16(self._sin_table)
-        if _step < 16384:  # 第一象限
-            result = tbl[_step]
-        elif _step < 32768:  # 第二象限
-            result = tbl[32767 - _step]
-        elif _step < 49152:  # 第三象限
-            result = 4096 - tbl[_step - 32768]
-        else:  # 第四象限
-            result = 4096 - tbl[65535 - _step]
-            
-            
-        return  l_max if (result * l_max) >> 12 >=2048 else 0
+        _step = (phi + ((65536 * F * t) // 10 // fs)) & 65535
+        p = _step
+        if p < 32768:
+            x = p
+            sgn = 1
+        else:
+            x = p - 32768
+            sgn = -1
+
+        y = (x * (32768 - x)) >> 16
+        y2 = (y * y) >> 12
+        y = y + ((922 * (y2 - y)) >> 12)
+        if sgn < 0:
+            y = -y
+        return l_max if y >= 0 else 0
 
 
     @micropython.viper
     def is_square_True_now(self,F:int, l_max:int, phi:int, fs:int,t:int) ->int:
-        _step = (phi + ((65536 * F*t) // 10 // fs))%65536
-        tbl = ptr16(self._sin_table)
-        if _step < 16384:  # 第一象限
-            result = tbl[_step]
-        elif _step < 32768:  # 第二象限
-            result = tbl[32767 - _step]
-        elif _step < 49152:  # 第三象限
-            result = 4096 - tbl[_step - 32768]
-        else:  # 第四象限
-            result = 4096 - tbl[65535 - _step]
-            
-        return  1 if result >> 12 >=2048 else 0
+        _step = (phi + ((65536 * F * t) // 10 // fs)) & 65535
+        p = _step
+        if p < 32768:
+            x = p
+            sgn = 1
+        else:
+            x = p - 32768
+            sgn = -1
+
+        y = (x * (32768 - x)) >> 16
+        y2 = (y * y) >> 12
+        y = y + ((922 * (y2 - y)) >> 12)
+        if sgn < 0:
+            y = -y
+        return 1 if y >= 0 else 0
 
     ###########################################################################
 
@@ -756,57 +783,28 @@ class LEDMathMethod:
     @micropython.native  
     def is_math_next(self,F, l_max, phi, fs):
         __step = int(65536 * F) //10 // fs
-        _step = (phi + __step )%65536
-        tbl = self._sin_table  # 本地變數存取更快
+        _step = (phi + __step ) & 65535
         for i in range(fs):
-            if _step < 16384:  # 第一象限
-                result = tbl[_step]
-            elif _step < 32768:  # 第二象限
-                result = tbl[32767 - _step]
-            elif _step < 49152:  # 第三象限
-                result = 4096 - tbl[_step - 32768]
-            else:  # 第四象限
-                result = 4096 - tbl[65535 - _step]
-            
-            yield (result * l_max) >> 12
-            _step = (_step + __step)%65536
+            w = self._wave01_q12(_step)
+            yield (w * l_max) >> 12
+            _step = (_step + __step) & 65535
 
     @micropython.native
     def is_square_wave_next(self,F, l_max, phi, fs):
         __step = int(65536 * F) //10 // fs
-        _step = (phi + __step )%65536
-        tbl = self._sin_table
+        _step = (phi + __step ) & 65535
         for i in range(fs):
-            if _step < 16384:  # 第一象限
-                result = tbl[_step]
-            elif _step < 32768:  # 第二象限
-                result = tbl[32767 - _step]
-            elif _step < 49152:  # 第三象限
-                result = 4096 - tbl[_step - 32768]
-            else:  # 第四象限
-                result = 4096 - tbl[65535 - _step]
-                
-            yield  l_max if (result) >> 12 >=2047 else 0
-            _step = (_step + __step)%65536
+            yield l_max if self._wave01_q12(_step) >= 2048 else 0
+            _step = (_step + __step) & 65535
 
 
     @micropython.native 
     def is_pulse_wave_next(self,F, l_max, phi, fs,pulse = 2047):
         __step = int(65536 * F) //10 // fs
-        _step = (phi + __step )%65536
-        tbl = self._sin_table
+        _step = (phi + __step ) & 65535
         for i in range(fs):
-            if _step < 16384:  # 第一象限
-                result = tbl[_step]
-            elif _step < 32768:  # 第二象限
-                result = tbl[32767 - _step]
-            elif _step < 49152:  # 第三象限
-                result = 4096 - tbl[_step - 32768]
-            else:  # 第四象限
-                result = 4096 - tbl[65535 - _step]
-                
-            yield  l_max if (result) >> 12 >=pulse else 0
-            _step = (_step + __step)%65536
+            yield l_max if self._wave01_q12(_step) >= pulse else 0
+            _step = (_step + __step) & 65535
 
     @micropython.native 
     def is_pulse_next(self,F, l_max, phi, fs,pulse = 1):
@@ -828,20 +826,10 @@ class LEDMathMethod:
     @micropython.native 
     def is_square_True_next(self,F, l_max, phi, fs):
         __step = int(65536 * F) //10 // fs
-        _step = (phi + __step )%65536
-        tbl = self._sin_table
+        _step = (phi + __step ) & 65535
         for i in range(fs):
-            if _step < 16384:  # 第一象限
-                result = tbl[_step]
-            elif _step < 32768:  # 第二象限
-                result = tbl[32767 - _step]
-            elif _step < 49152:  # 第三象限
-                result = 4096 - tbl[_step - 32768]
-            else:  # 第四象限
-                result = 4096 - tbl[65535 - _step]
-                
-            yield  True if result >> 12 >=2047 else False
-            _step = (_step + __step)%65536
+            yield True if self._wave01_q12(_step) >= 2048 else False
+            _step = (_step + __step) & 65535
 
 
     @micropython.native 

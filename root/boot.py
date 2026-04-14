@@ -1,5 +1,5 @@
 from lib.ESP_Boot import *
-from lib.LEDcommander import *
+from lib.LEDCommander import *
 from lib.LEDController import *
 from lib.ConfigManager import *
 

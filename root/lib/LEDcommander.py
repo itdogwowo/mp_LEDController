@@ -2,7 +2,7 @@ from lib.LEDMathMethod import *
 import _thread
 
 
-class LEDcommander:
+class LEDCommander:
     def __init__(self, led_list, rgb_list,_uart = None,buf_table = []):
         self.mt =  LEDMathMethod()
         self.led_list = led_list

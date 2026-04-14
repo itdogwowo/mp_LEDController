@@ -32,7 +32,7 @@ def random_pattern(F_n, l_max, run_n, gpio_all, r_end_Time, led_n=0, method='squ
 
 def set_servo_angle(angle):
     min_duty = 1638
-    max_duty = 8192
+    max_duty = 7864
     duty = int(min_duty + (angle / 180) * (max_duty - min_duty))
     pwm.duty_u16(duty)
 
