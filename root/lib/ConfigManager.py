@@ -4,6 +4,31 @@ import os
 import time
 from lib.globalMethod import debugPrint
 
+class _MemoryKV:
+    def __init__(self):
+        self._d = {}
+
+    def __contains__(self, key):
+        return key in self._d
+
+    def __getitem__(self, key):
+        return self._d[key]
+
+    def __setitem__(self, key, value):
+        self._d[key] = value
+
+    def __delitem__(self, key):
+        del self._d[key]
+
+    def keys(self):
+        return list(self._d.keys())
+
+    def flush(self):
+        return
+
+    def close(self):
+        return
+
 class ConfigManager:
     """
     配置和狀態管理器 - 使用 btree 實現斷電恢復
@@ -116,16 +141,43 @@ class ConfigManager:
     
     def _open_db(self):
         """打開 btree 數據庫"""
+        def _open_file_rw():
+            try:
+                return open(self.db_file, 'r+b')
+            except OSError:
+                return open(self.db_file, 'w+b')
+
         try:
-            # 打開或創建數據庫文件
-            self.f = open(self.db_file, 'r+b')
-        except OSError:
-            # 文件不存在,創建新文件
-            self.f = open(self.db_file, 'w+b')
-        
-        # 打開 btree
-        self.db = btree.open(self.f)
-        debugPrint(f"[Config] ✓ 數據庫已打開: {self.db_file}")
+            self.f = _open_file_rw()
+            try:
+                self.db = btree.open(self.f)
+                debugPrint(f"[Config] ✓ 數據庫已打開: {self.db_file}")
+                return
+            except OSError as e:
+                debugPrint(f"[Config] ⚠ 數據庫打開失敗: {e}, 嘗試重建 {self.db_file}")
+                try:
+                    self.f.close()
+                except:
+                    pass
+
+                try:
+                    os.remove(self.db_file)
+                except:
+                    pass
+
+                self.f = open(self.db_file, 'w+b')
+                self.db = btree.open(self.f)
+                debugPrint(f"[Config] ✓ 數據庫已重建並打開: {self.db_file}")
+                return
+        except Exception as e:
+            debugPrint(f"[Config] ✗ 數據庫不可用: {e}, 改用記憶體模式")
+            try:
+                if self.f:
+                    self.f.close()
+            except:
+                pass
+            self.f = None
+            self.db = _MemoryKV()
     
     def _sync_config_from_startup(self):
         """

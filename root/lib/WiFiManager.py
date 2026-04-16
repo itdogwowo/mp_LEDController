@@ -29,8 +29,8 @@ class WiFiManager:
             hostname: mDNS 主機名 (可選,優先從配置中讀取)
             max_retries: 最大重試次數 (默認10次)
         """
-        self.sta = network.WLAN(network.STA_IF)  # 客戶端模式
-        self.ap = network.WLAN(network.AP_IF)    # AP模式
+        self.sta = None
+        self.ap = None
         self.is_ap_mode = False
         self.mdns = None
         self.max_retries = max_retries
@@ -56,6 +56,33 @@ class WiFiManager:
         
         debugPrint(f"[WiFi] 主機名: {self.hostname}")
         debugPrint(f"[WiFi] 最大重試次數: {self.max_retries}")
+
+        if self.is_enabled():
+            self._get_sta()
+
+    def _get_sta(self):
+        if self.sta is not None:
+            return self.sta
+
+        try:
+            self.sta = network.WLAN(network.STA_IF)
+            return self.sta
+        except OSError as e:
+            debugPrint(f"[WiFi] STA 初始化失敗: {e}")
+            self.sta = None
+            return None
+
+    def _get_ap(self):
+        if self.ap is not None:
+            return self.ap
+
+        try:
+            self.ap = network.WLAN(network.AP_IF)
+            return self.ap
+        except OSError as e:
+            debugPrint(f"[WiFi] AP 初始化失敗: {e}")
+            self.ap = None
+            return None
     
     def _parse_config_dict(self, network_config):
         """
@@ -236,10 +263,16 @@ class WiFiManager:
         try:
             # 設置網絡接口的主機名
             if self.is_ap_mode:
-                self.ap.config(dhcp_hostname=self.hostname)
+                ap = self._get_ap()
+                if ap is None:
+                    return False
+                ap.config(dhcp_hostname=self.hostname)
                 debugPrint(f"[mDNS] AP 模式主機名設置為: {self.hostname}")
             else:
-                self.sta.config(dhcp_hostname=self.hostname)
+                sta = self._get_sta()
+                if sta is None:
+                    return False
+                sta.config(dhcp_hostname=self.hostname)
                 debugPrint(f"[mDNS] STA 模式主機名設置為: {self.hostname}.local")
             
             return True
@@ -267,8 +300,16 @@ class WiFiManager:
         Returns:
             tuple: (所有網絡列表, 是否找到目標網絡)
         """
-        if not self.sta.active():
-            self.sta.active(True)
+        if not self.is_enabled():
+            debugPrint("[WiFi] 網絡功能已禁用 (enable=0),跳過掃描")
+            return [], False
+
+        sta = self._get_sta()
+        if sta is None:
+            return [], False
+
+        if not sta.active():
+            sta.active(True)
             time.sleep(0.5)
         
         debugPrint("\n" + "="*60)
@@ -276,7 +317,7 @@ class WiFiManager:
         debugPrint("="*60)
         
         try:
-            networks = self.sta.scan()
+            networks = sta.scan()
             
             if not networks:
                 debugPrint("⚠️  未找到任何 WiFi 網絡")
@@ -367,125 +408,124 @@ class WiFiManager:
         Returns:
             bool: 連接成功返回 True, 失敗返回 False
         """
-        # 檢查是否啟用
-        if self.is_enabled():
-            debugPrint("[WiFi] 連接用戶wi-fi")
-            
-            # 使用傳入參數或配置中的值
-            ssid = ssid or self.config['sta']['ssid']
-            password = password or self.config['sta']['password']
-            timeout = timeout or self.config['sta']['timeout']
-            
-            debugPrint(f"\n[WiFi] 準備連接到: {ssid}")
-            
-            # 停止 mDNS (如果正在運行)
-            self._stop_mdns()
-            
-            # 關閉 AP 模式
-            if self.ap.active():
-                self.ap.active(False)
-                debugPrint("[WiFi] 已關閉 AP 模式")
-                
-            # 啟動 STA 模式
-            if not self.sta.active():
-                self.sta.active(True)
-                time.sleep(0.5)
-                
-                
-            # 掃描網絡 (可選)
-            target_found = False
-            if show_scan:
-                _, target_found = self.scan_and_display_networks(target_ssid=ssid)
-            
-            # 設置主機名 (在連接前)
-            try:
-                self.sta.config(dhcp_hostname=self.hostname)
-            except:
-                pass
-            
-            # 如果已經連接,先斷開
-            if self.sta.isconnected():
-                self.sta.disconnect()
-                time.sleep(1)
-                
-            # 開始重試連接
-            debugPrint(f"\n[WiFi] 開始連接嘗試 (最多 {self.max_retries} 次)...")
-            debugPrint("="*60)
-            
-            for attempt in range(1, self.max_retries + 1):
-                debugPrint(f"\n🔄 第 {attempt}/{self.max_retries} 次嘗試連接到: {ssid}")
-                
-                # 開始連接
-                try:
-                    self.sta.connect(ssid, password)
-                except Exception as e:
-                    debugPrint(f"  ✗ 連接命令執行失敗: {e}")
-                    time.sleep(2)
-                    continue
-                
-                # 等待連接
-                start_time = time.time()
-                dots = 0
-                while not self.sta.isconnected():
-                    elapsed = time.time() - start_time
-                    
-                    if elapsed > timeout:
-                        debugPrint(f"\n  ✗ 連接超時 ({timeout}秒)")
-                        break
-                    
-                    # 每秒打印一個點
-                    if int(elapsed) > dots:
-                        debugPrint(".", end="", flush=True)
-                        dots = int(elapsed)
-                    
-                    time.sleep(0.1)
-                    
-                # 檢查連接結果
-                if self.sta.isconnected():
-                    debugPrint(f"\n  ✓ 連接成功! (用時 {time.time() - start_time:.1f} 秒)")
-                    debugPrint("="*60)
-                    self.is_ap_mode = False
-                    
-                    # 啟動 mDNS
-                    time.sleep(1)
-                    self._setup_mdns()
-                    
-                    return True
-                else:
-                    # 連接失敗,斷開並準備重試
-                    try:
-                        self.sta.disconnect()
-                    except:
-                        pass
-                    
-                    # 最後一次嘗試不需要等待
-                    if attempt < self.max_retries:
-                        wait_time = min(2 * attempt, 10)  # 遞增等待時間,最多10秒
-                        debugPrint(f"  ⏳ 等待 {wait_time} 秒後重試...")
-                        time.sleep(wait_time)
-                        
-            # 所有嘗試都失敗
-            debugPrint(f"\n✗ 連接失敗: 已嘗試 {self.max_retries} 次")
-            debugPrint("="*60)
-            
-            # 提供建議
-            debugPrint("\n💡 建議檢查:")
-            debugPrint("  1. SSID 是否正確 (區分大小寫)")
-            debugPrint("  2. 密碼是否正確")
-            debugPrint("  3. WiFi 路由器是否正常工作")
-            debugPrint("  4. 設備是否在 WiFi 覆蓋範圍內")
-            if show_scan and not target_found:
-                debugPrint(f"  5. 目標網絡 '{ssid}' 未在掃描列表中,可能不在範圍內\n")
-            
+        if not self.is_enabled():
+            debugPrint("[WiFi] 網絡功能已禁用 (enable=0),跳過 STA 連接")
+            self.disconnect()
             return False
+
+        debugPrint("[WiFi] 連接用戶wi-fi")
+        sta = self._get_sta()
+        if sta is None:
+            return False
+
+        # 使用傳入參數或配置中的值
+        ssid = ssid or self.config['sta']['ssid']
+        password = password or self.config['sta']['password']
+        timeout = timeout or self.config['sta']['timeout']
+
+        debugPrint(f"\n[WiFi] 準備連接到: {ssid}")
+
+        # 停止 mDNS (如果正在運行)
+        self._stop_mdns()
+
+        # 關閉 AP 模式
+        ap = self.ap
+        if ap is not None and ap.active():
+            ap.active(False)
+            debugPrint("[WiFi] 已關閉 AP 模式")
+
+        # 啟動 STA 模式
+        if not sta.active():
+            sta.active(True)
+            time.sleep(0.5)
+
+        # 掃描網絡 (可選)
+        target_found = False
+        if show_scan:
+            _, target_found = self.scan_and_display_networks(target_ssid=ssid)
+
+        # 設置主機名 (在連接前)
+        try:
+            sta.config(dhcp_hostname=self.hostname)
+        except:
+            pass
+
+        # 如果已經連接,先斷開
+        if sta.isconnected():
+            sta.disconnect()
+            time.sleep(1)
+
+        # 開始重試連接
+        debugPrint(f"\n[WiFi] 開始連接嘗試 (最多 {self.max_retries} 次)...")
+        debugPrint("="*60)
+
+        for attempt in range(1, self.max_retries + 1):
+            debugPrint(f"\n🔄 第 {attempt}/{self.max_retries} 次嘗試連接到: {ssid}")
+
+            # 開始連接
+            try:
+                sta.connect(ssid, password)
+            except Exception as e:
+                debugPrint(f"  ✗ 連接命令執行失敗: {e}")
+                time.sleep(2)
+                continue
+
+            # 等待連接
+            start_time = time.time()
+            dots = 0
+            while not sta.isconnected():
+                elapsed = time.time() - start_time
+
+                if elapsed > timeout:
+                    debugPrint(f"\n  ✗ 連接超時 ({timeout}秒)")
+                    break
+
+                # 每秒打印一個點
+                if int(elapsed) > dots:
+                    debugPrint(".", end="", flush=True)
+                    dots = int(elapsed)
+
+                time.sleep(0.1)
+
+            # 檢查連接結果
+            if sta.isconnected():
+                debugPrint(f"\n  ✓ 連接成功! (用時 {time.time() - start_time:.1f} 秒)")
+                debugPrint("="*60)
+                self.is_ap_mode = False
+
+                # 啟動 mDNS
+                time.sleep(1)
+                self._setup_mdns()
+
+                return True
+            else:
+                # 連接失敗,斷開並準備重試
+                try:
+                    sta.disconnect()
+                except:
+                    pass
+
+                # 最後一次嘗試不需要等待
+                if attempt < self.max_retries:
+                    wait_time = min(2 * attempt, 10)  # 遞增等待時間,最多10秒
+                    debugPrint(f"  ⏳ 等待 {wait_time} 秒後重試...")
+                    time.sleep(wait_time)
+
+        # 所有嘗試都失敗
+        debugPrint(f"\n✗ 連接失敗: 已嘗試 {self.max_retries} 次")
+        debugPrint("="*60)
+
+        # 提供建議
+        debugPrint("\n💡 建議檢查:")
+        debugPrint("  1. SSID 是否正確 (區分大小寫)")
+        debugPrint("  2. 密碼是否正確")
+        debugPrint("  3. WiFi 路由器是否正常工作")
+        debugPrint("  4. 設備是否在 WiFi 覆蓋範圍內")
+        if show_scan and not target_found:
+            debugPrint(f"  5. 目標網絡 '{ssid}' 未在掃描列表中,可能不在範圍內\n")
+
+        return False
             
-        
-#         else:
-#             debugPrint("[WiFi] ap模式")
-#             return False
-
-        
-
     
     def create_ap(self, ssid=None, password=None):
         """
@@ -498,6 +538,15 @@ class WiFiManager:
         Returns:
             bool: 創建成功返回 True
         """
+        if not self.is_enabled():
+            debugPrint("[WiFi] 網絡功能已禁用 (enable=0),跳過 AP 建立")
+            self.disconnect()
+            return False
+
+        ap = self._get_ap()
+        if ap is None:
+            return False
+
         # 使用傳入參數或配置中的值
         ap_config = self.config['ap']
         ssid = ssid or ap_config['ssid']
@@ -509,16 +558,17 @@ class WiFiManager:
         self._stop_mdns()
         
         # 關閉 STA 模式
-        if self.sta.active():
-            self.sta.active(False)
+        sta = self.sta
+        if sta is not None and sta.active():
+            sta.active(False)
             debugPrint("[WiFi] 已關閉 STA 模式")
         
         # 啟動 AP 模式
-        if not self.ap.active():
-            self.ap.active(True)
+        if not ap.active():
+            ap.active(True)
         
         # 配置 AP
-        self.ap.config(
+        ap.config(
             essid=ssid,
             password=password,
             authmode=ap_config['authmode'],
@@ -528,7 +578,7 @@ class WiFiManager:
         
         # 設置主機名
         try:
-            self.ap.config(dhcp_hostname=self.hostname)
+            ap.config(dhcp_hostname=self.hostname)
         except:
             pass
         
@@ -554,10 +604,10 @@ class WiFiManager:
         Returns:
             bool: 是否成功建立連接
         """
-        # 檢查是否啟用網絡
-#         if not self.is_enabled():
-#             debugPrint("[WiFi] 網絡功能已禁用 (enable=0),跳過連接")
-#             return False
+        if not self.is_enabled():
+            debugPrint("[WiFi] 網絡功能已禁用 (enable=0),跳過連接")
+            self.disconnect()
+            return False
         
         if force_ap:
             debugPrint("[WiFi] 強制啟用 AP 模式")
@@ -576,14 +626,16 @@ class WiFiManager:
         # 停止 mDNS
         self._stop_mdns()
         
-        if self.sta.active():
+        if self.sta is not None and self.sta.active():
             self.sta.disconnect()
             self.sta.active(False)
             debugPrint("[WiFi] STA 模式已關閉")
         
-        if self.ap.active():
+        if self.ap is not None and self.ap.active():
             self.ap.active(False)
             debugPrint("[WiFi] AP 模式已關閉")
+
+        self.is_ap_mode = False
     
     def get_connection_info(self):
         """
@@ -606,7 +658,7 @@ class WiFiManager:
             'mdns_name': f"{self.hostname}.local"
         }
         
-        if self.is_ap_mode and self.ap.active():
+        if self.is_ap_mode and self.ap is not None and self.ap.active():
             # AP 模式信息
             info['connected'] = True
             ifconfig = self.ap.ifconfig()
@@ -617,7 +669,7 @@ class WiFiManager:
             info['mac'] = self._mac_to_str(self.ap.config('mac'))
             info['ssid'] = self.config['ap']['ssid']
             
-        elif not self.is_ap_mode and self.sta.active() and self.sta.isconnected():
+        elif not self.is_ap_mode and self.sta is not None and self.sta.active() and self.sta.isconnected():
             # STA 模式信息
             info['connected'] = True
             ifconfig = self.sta.ifconfig()
@@ -668,6 +720,10 @@ class WiFiManager:
         Returns:
             list: WiFi 網絡列表
         """
+        if not self.is_enabled():
+            debugPrint("[WiFi] 網絡功能已禁用 (enable=0),跳過掃描")
+            return []
+
         networks, _ = self.scan_and_display_networks()
         return networks
     

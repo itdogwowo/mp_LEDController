@@ -223,8 +223,17 @@ class LEDController:
     def setup(self):
         """初始化硬體設定"""
         if self.led_Type == 'esp_LED':
-            self.led = [PWM(Pin(pin_number['GPIO']), freq=50, duty_u16=pin_number['dArc']) 
-                       for pin_number in self.led_IO['led_IO']]
+            self.led = []
+            for pin_number in self.led_IO['led_IO']:
+                io_type = pin_number.get('type', 0)
+                if io_type == 0:
+                    freq = 1000
+                elif io_type == 1:
+                    freq = 50
+                else:
+                    freq = 1000
+                duty_u16 = int(pin_number.get('dArc', 0))
+                self.led.append(PWM(Pin(pin_number['GPIO']), freq=freq, duty_u16=duty_u16))
         elif self.led_Type == 'i2c_LED':
             self.led = self.led_IO['led_IO']
         elif self.led_Type == 'RGB':
@@ -232,23 +241,26 @@ class LEDController:
     
     def reset(self):
         """重置所有LED狀態"""
-        self.LED_Buffer = array.array('H', [0] * self.led_IO['Q'])
-        
         if self.led_Type == 'esp_LED':
+            self.LED_Buffer = array.array('H', [0] * self.led_IO['Q'])
             for idx, led in enumerate(self.led):
-                self.LED_Buffer[idx] = self.led_IO['led_IO'][idx]['dArc']
-                led.duty_u16(self.LED_Buffer[idx])
-        
-        if self.led_Type == 'i2c_LED':
+                darc = int(self.led_IO['led_IO'][idx].get('dArc', 0))
+                self.LED_Buffer[idx] = darc
+                led.duty_u16(darc)
+        elif self.led_Type == 'i2c_LED':
+            darc = int(self.led_IO.get('dArc', 0))
+            self.LED_Buffer = array.array('H', [darc] * self.led_IO['Q'])
             self.led.buffer = self.LED_Buffer
             self.led.sync_buffer()
-        
-        if self.led_Type == 'RGB':
+        elif self.led_Type == 'RGB':
+            self.LED_Buffer = array.array('H', [0] * self.led_IO['Q'])
             self.led_H = array.array('H', [0] * self.led_IO['Q'])
             # ✅ 修改: S使用16位存儲(0-4095)
             self.led_S = array.array('H', [0] * self.led_IO['Q'])
             self.led.fill((0, 0, 0))
             self.led.write()
+        else:
+            self.LED_Buffer = array.array('H', [0] * self.led_IO['Q'])
     
     # ========================================
     # 核心轉換函數 (精確度優化版 0-4095)
@@ -523,7 +535,7 @@ class LEDController:
             
             if self.led_Type in ('esp_LED', 'i2c_LED'):
                 if len(ledQ) == 0:
-                    self.LED_Buffer = array.array('H', [value ] * self.led_IO['Q'])
+                    self.LED_Buffer = array.array('H', [value << 4 ] * self.led_IO['Q'])
                 else:
                     for i in ledQ:
                         self.LED_Buffer[i] = value
@@ -596,7 +608,7 @@ class LEDController:
         try:
             if self.led_Type == 'esp_LED':
                 for i in range(self.led_IO['Q']):
-                    self.led[i].duty_u16(self.LED_Buffer[i] << 4 )
+                    self.led[i].duty_u16(self.LED_Buffer[i])
             
             if self.led_Type == 'i2c_LED':
                 self.led.buffer = self.LED_Buffer
@@ -606,6 +618,3 @@ class LEDController:
                 self.led.write()
         except BaseException as e:
             print(e)
-
-
-

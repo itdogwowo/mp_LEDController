@@ -73,7 +73,14 @@ def check_looping(loop_one_success,cfg):
         except Exception as e:
             debugPrint(f"✗ 網絡初始化失敗: {e}\n")
             import sys
-            sys.debugPrint_exception(e)
+            if hasattr(sys, "print_exception"):
+                sys.print_exception(e)
+            else:
+                try:
+                    import traceback
+                    traceback.print_exc()
+                except:
+                    pass
             wifi = None
 
     else:
@@ -217,16 +224,16 @@ def init_i2c(led_io):
                 try:
                     pca = PCA9685(i2c,address=int(i,16))
                     pca_type = i2cc.get('type',0)
-
-                    led_IO = {'led_IO':pca,'Q':16}
-                    ledPwm = LEDController('i2c_LED',led_IO)
-                    i2c_led_list.append(ledPwm)
                     if pca_type == 0:
                         pca.freq(1000)
                     elif pca_type == 1 :
                         pca.freq(50)
                     else:
                         pca.freq(1000)
+
+                    led_IO = {'led_IO':pca,'Q':16,'dArc':i2cc.get('dArc',0)}
+                    ledPwm = LEDController('i2c_LED',led_IO)
+                    i2c_led_list.append(ledPwm)
 
                 except BaseException as e:
                     debugPrint(f'missing address : {i}')
@@ -295,6 +302,4 @@ def init_i2s(led_io):
 
 
     return i2s
-
-
 
