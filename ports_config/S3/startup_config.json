@@ -28,7 +28,7 @@
     "i2c_IO":{
         "enable": 0 ,
         "i2c_List":[
-            {"GPIO":{"scl":47,"sda":48},"address":["0x40"]}
+            {"GPIO":{"scl":47,"sda":48},"address":["0x40"],"dArc":0,"type":0}
         ]
     },
     "i2s_IO":{

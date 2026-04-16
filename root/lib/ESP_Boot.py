@@ -216,13 +216,17 @@ def init_i2c(led_io):
             for i in i2cc['address']:
                 try:
                     pca = PCA9685(i2c,address=int(i,16))
-                    pca.freq(1000)
-                    # i2c_Object = init_i2c_led(pca)
-                    # i2c_led_list.append(i2c_Object)
+                    pca_type = i2cc.get('type',0)
 
                     led_IO = {'led_IO':pca,'Q':16}
                     ledPwm = LEDController('i2c_LED',led_IO)
                     i2c_led_list.append(ledPwm)
+                    if pca_type == 0:
+                        pca.freq(1000)
+                    elif pca_type == 1 :
+                        pca.freq(50)
+                    else:
+                        pca.freq(1000)
 
                 except BaseException as e:
                     debugPrint(f'missing address : {i}')

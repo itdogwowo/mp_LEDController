@@ -43,7 +43,7 @@ i2c_led_list = init_i2c(config['i2c_IO'])
 i2s = init_i2s(config['i2s_IO'])
 
 all_led_list = led_list + i2c_led_list
-ledC = LEDcommander(all_led_list,rgb_list)
+ledC = LEDCommander(all_led_list,rgb_list)
 ledC.init_all()
 
 

@@ -523,7 +523,7 @@ class LEDController:
             
             if self.led_Type in ('esp_LED', 'i2c_LED'):
                 if len(ledQ) == 0:
-                    self.LED_Buffer = array.array('H', [value] * self.led_IO['Q'])
+                    self.LED_Buffer = array.array('H', [value ] * self.led_IO['Q'])
                 else:
                     for i in ledQ:
                         self.LED_Buffer[i] = value
@@ -596,7 +596,7 @@ class LEDController:
         try:
             if self.led_Type == 'esp_LED':
                 for i in range(self.led_IO['Q']):
-                    self.led[i].duty_u16(self.LED_Buffer[i])
+                    self.led[i].duty_u16(self.LED_Buffer[i] << 4 )
             
             if self.led_Type == 'i2c_LED':
                 self.led.buffer = self.LED_Buffer
