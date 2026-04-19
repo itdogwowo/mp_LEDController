@@ -60,6 +60,15 @@ class LEDController:
         self.brightness = 4095
         self.setup()
         self.reset()
+
+    @staticmethod
+    @micropython.viper
+    def _clamp_12bit_viper(value: int) -> int:
+        if value < 0:
+            return 0
+        if value > 4095:
+            return 4095
+        return value
     
     @micropython.native
     def __len__(self):
@@ -82,7 +91,7 @@ class LEDController:
     @micropython.native
     def __setitem__(self, index, value):
         if 0 <= index < self.led_IO['Q']:
-            self.LED_Buffer[index] = value
+            self.LED_Buffer[index] = self._clamp_12bit_viper(int(value))
         else:
             raise IndexError('Index out of range')
     
@@ -131,15 +140,7 @@ class LEDController:
         
         @micropython.native
         def duty(self, lum, ledQ=[]):
-            if self.controller.led_Type == 'esp_LED':
-                io_lum = lum << 4
-            elif self.controller.led_Type == 'i2c_LED':
-                io_lum = lum
-            elif self.controller.led_Type == 'RGB':
-                io_lum = lum
-            else:
-                io_lum = lum
-            self.controller.duty(io_lum, ledQ+[self.index])
+            self.controller.duty(lum, ledQ + [self.index])
         
         @micropython.viper
         def led_H(self):
@@ -174,10 +175,7 @@ class LEDController:
         
         @micropython.viper
         def set_buf(self, lum: int):
-            if self.controller.led_Type == 'esp_LED':
-                io_lum = int(lum) << 4
-            else:
-                io_lum = int(lum)
+            io_lum = self.controller._clamp_12bit_viper(int(lum))
             self.controller.LED_Buffer[self.index] = io_lum
         
         @micropython.viper
@@ -232,7 +230,8 @@ class LEDController:
                     freq = 50
                 else:
                     freq = 1000
-                duty_u16 = int(pin_number.get('dArc', 0))
+                darc = self._clamp_12bit_viper(int(pin_number.get('dArc', 0)))
+                duty_u16 = darc << 4
                 self.led.append(PWM(Pin(pin_number['GPIO']), freq=freq, duty_u16=duty_u16))
         elif self.led_Type == 'i2c_LED':
             self.led = self.led_IO['led_IO']
@@ -244,11 +243,11 @@ class LEDController:
         if self.led_Type == 'esp_LED':
             self.LED_Buffer = array.array('H', [0] * self.led_IO['Q'])
             for idx, led in enumerate(self.led):
-                darc = int(self.led_IO['led_IO'][idx].get('dArc', 0))
+                darc = self._clamp_12bit_viper(int(self.led_IO['led_IO'][idx].get('dArc', 0)))
                 self.LED_Buffer[idx] = darc
-                led.duty_u16(darc)
+                led.duty_u16(darc << 4)
         elif self.led_Type == 'i2c_LED':
-            darc = int(self.led_IO.get('dArc', 0))
+            darc = self._clamp_12bit_viper(int(self.led_IO.get('dArc', 0)))
             self.LED_Buffer = array.array('H', [darc] * self.led_IO['Q'])
             self.led.buffer = self.LED_Buffer
             self.led.sync_buffer()
@@ -531,11 +530,13 @@ class LEDController:
     
     def duty(self, lum, ledQ=[]):
         try:
+            lum = self._clamp_12bit_viper(int(lum))
             value = int(lum * self.brightness / 4095)
+            value = self._clamp_12bit_viper(value)
             
             if self.led_Type in ('esp_LED', 'i2c_LED'):
                 if len(ledQ) == 0:
-                    self.LED_Buffer = array.array('H', [value << 4 ] * self.led_IO['Q'])
+                    self.LED_Buffer = array.array('H', [value] * self.led_IO['Q'])
                 else:
                     for i in ledQ:
                         self.LED_Buffer[i] = value
@@ -608,7 +609,8 @@ class LEDController:
         try:
             if self.led_Type == 'esp_LED':
                 for i in range(self.led_IO['Q']):
-                    self.led[i].duty_u16(self.LED_Buffer[i])
+                    v = self._clamp_12bit_viper(int(self.LED_Buffer[i]))
+                    self.led[i].duty_u16(v << 4)
             
             if self.led_Type == 'i2c_LED':
                 self.led.buffer = self.LED_Buffer
