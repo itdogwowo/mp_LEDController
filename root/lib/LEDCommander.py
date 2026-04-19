@@ -281,6 +281,3 @@ class LEDCommander:
 
         print(f'run_pg_time: {elapsed}',f'buffer_Time: {self.buffer_Time}')
 
-
-
-

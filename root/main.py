@@ -1,6 +1,5 @@
 import gc
 
-import boot
 
 # 可在 REPL / WebREPL 執行:
 # >>> import main
@@ -12,7 +11,7 @@ def stop():
     global RUN
     RUN = False
     try:
-        boot.ledC.keep_run = False
+        ledC.keep_run = False
     except Exception:
         pass
 
@@ -57,7 +56,7 @@ def _preview_wave():
     preview_pattern = [
         {"type": "math_now", "F": 1, "l_max": 3200, "l_lim": 100, "phi": 0, "end_Time": 16}
     ]
-    gen = boot.ledC.mt.is_math_pattern_next(preview_pattern, stop=True)
+    gen = ledC.mt.is_math_pattern_next(preview_pattern, stop=True)
     values = [next(gen) for _ in range(8)]
     print("[preview wave]", values)
 
@@ -74,8 +73,8 @@ def run():
     _preview_wave()
 
     while RUN:
-        boot.ledC.keep_run = True
-        boot.ledC.run_Pattern(
+        ledC.keep_run = True
+        ledC.run_Pattern(
             led_init=led_init,
             gap_Time=20,
             encoder=4095,
