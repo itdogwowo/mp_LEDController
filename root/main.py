@@ -65,7 +65,7 @@ def run():
     global RUN
     RUN = True
 
-    led_init = _build_wave_led_init(boot.all_led_list)
+    led_init = _build_wave_led_init(all_led_list)
     if not led_init:
         print("沒有可用 LED，跳過播放")
         return
